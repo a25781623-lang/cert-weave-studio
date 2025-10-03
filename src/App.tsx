@@ -5,6 +5,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
+import UniversityLogin from "./pages/university/Login";
+import UniversityRegister from "./pages/university/Register";
+import UniversityDashboard from "./pages/university/Dashboard";
+import ViewCertificates from "./pages/university/Certificates";
+import RevokeCertificate from "./pages/university/Revoke";
+import EmployerVerify from "./pages/employer/Verify";
+import VerificationResult from "./pages/employer/Result";
 
 const queryClient = new QueryClient();
 
@@ -16,6 +23,13 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
+          <Route path="/university/login" element={<UniversityLogin />} />
+          <Route path="/university/register" element={<UniversityRegister />} />
+          <Route path="/university/dashboard" element={<UniversityDashboard />} />
+          <Route path="/university/certificates" element={<ViewCertificates />} />
+          <Route path="/university/revoke" element={<RevokeCertificate />} />
+          <Route path="/verify" element={<EmployerVerify />} />
+          <Route path="/verify/result/:certificateId" element={<VerificationResult />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
