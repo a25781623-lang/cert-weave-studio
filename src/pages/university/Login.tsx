@@ -6,9 +6,11 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
 import { GraduationCap, Shield } from "lucide-react";
+import axios from "axios"; // <-- Import axios
 
 const UniversityLogin = () => {
-  const [username, setUsername] = useState("");
+  // We now use email instead of username for login
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -17,24 +19,33 @@ const UniversityLogin = () => {
     e.preventDefault();
     setLoading(true);
 
-    // Simulate API call
-    setTimeout(() => {
-      if (username && password) {
-        localStorage.setItem("universityAuth", "true");
-        toast({
-          title: "Login Successful",
-          description: "Welcome to the University Portal",
-        });
-        navigate("/university/dashboard");
-      } else {
-        toast({
-          title: "Login Failed",
-          description: "Please enter valid credentials",
-          variant: "destructive",
-        });
-      }
+    try {
+      // Send login credentials to the backend
+      const response = await axios.post('http://localhost:3000/login', {
+        email,
+        password,
+      });
+
+      // If login is successful, the backend sends back a token.
+      // We save this token in the browser's local storage.
+      // This is how the app "remembers" that the user is logged in.
+      localStorage.setItem("universityAuthToken", response.data.token);
+
+      toast({
+        title: "Login Successful",
+        description: "Welcome back to the University Portal",
+      });
+      navigate("/university/dashboard");
+
+    } catch (error: any) {
+      toast({
+        title: "Login Failed",
+        description: error.response?.data?.message || "An error occurred.",
+        variant: "destructive",
+      });
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   };
 
   return (
@@ -50,13 +61,13 @@ const UniversityLogin = () => {
         <form onSubmit={handleLogin}>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
+              <Label htmlFor="email">Email Address</Label>
               <Input
-                id="username"
-                type="text"
-                placeholder="Enter your username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                id="email"
+                type="email"
+                placeholder="Enter your university email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
               />
             </div>
