@@ -8,18 +8,22 @@ import { Shield, Search, QrCode, GraduationCap } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const EmployerVerify = () => {
-  const [certificateId, setCertificateId] = useState("");
+  // --- LOGICAL CHANGE 1: State updated to handle full QR data ---
+  const [qrData, setQrData] = useState("");
   const navigate = useNavigate();
 
+  // --- LOGICAL CHANGE 2: Navigation logic updated ---
   const handleVerify = () => {
-    if (certificateId) {
-      navigate(`/verify/result/${certificateId}`);
+    if (qrData) {
+      // Pass the data as a URL query parameter
+      navigate(`/verify/result?qrData=${encodeURIComponent(qrData)}`);
     }
   };
 
   const handleQRScan = () => {
     // In a real implementation, this would open a QR scanner
-    alert("QR Scanner would open here. For demo, please enter certificate ID manually.");
+    // and populate the input field with the result.
+    alert("QR Scanner would open here. For this demo, please paste the full data string from the QR code into the input field.");
   };
 
   return (
@@ -52,7 +56,7 @@ const EmployerVerify = () => {
             </div>
             <h2 className="text-4xl font-bold text-foreground">Verify Certificate</h2>
             <p className="text-lg text-muted-foreground">
-              Enter a certificate ID or scan a QR code to verify authenticity
+              Enter the certificate data or scan a QR code to verify authenticity
             </p>
           </div>
 
@@ -65,13 +69,14 @@ const EmployerVerify = () => {
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-2">
-                <Label htmlFor="certificateId">Certificate ID</Label>
+                {/* --- LOGICAL CHANGE 3: Label and placeholder updated for clarity --- */}
+                <Label htmlFor="qrData">Certificate Data</Label>
                 <div className="flex gap-2">
                   <Input
-                    id="certificateId"
-                    placeholder="Enter certificate ID (e.g., CERT-1704196800000)"
-                    value={certificateId}
-                    onChange={(e) => setCertificateId(e.target.value)}
+                    id="qrData"
+                    placeholder="Paste full data string from QR code here"
+                    value={qrData}
+                    onChange={(e) => setQrData(e.target.value)}
                     className="flex-1"
                     onKeyDown={(e) => e.key === 'Enter' && handleVerify()}
                   />

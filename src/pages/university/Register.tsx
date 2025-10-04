@@ -65,7 +65,10 @@ const UniversityRegister = () => {
     try {
       const provider = new ethers.BrowserProvider((window as any).ethereum);
       const accounts = await provider.send("eth_requestAccounts", []);
-      setFormData((prev) => ({ ...prev, walletAddress: accounts[0] }));
+      const checksumAddress = ethers.getAddress(accounts[0]);
+
+      // --- Use the corrected, checksummed address ---
+      setFormData((prev) => ({ ...prev, walletAddress: checksumAddress }));
       toast({
         title: "Wallet Connected",
         description: `Address: ${accounts[0]}`,

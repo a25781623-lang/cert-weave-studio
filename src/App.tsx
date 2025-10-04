@@ -28,7 +28,7 @@ const App = () => (
           {/* Main and Employer Routes */}
           <Route path="/" element={<Index />} />
           <Route path="/verify" element={<EmployerVerify />} />
-          <Route path="/verify/result/:certificateId" element={<VerificationResult />} />
+          <Route path="/verify/result" element={<VerificationResult />} />
 
           {/* University Registration and Login Flow Routes */}
           <Route path="/university/login" element={<UniversityLogin />} />

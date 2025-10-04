@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { ethers } from "ethers"; // <-- Import ethers
+import { useState, useEffect } from "react";
+import { ethers } from "ethers";
 import UniversitySidebar from "@/components/UniversitySidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,10 +22,29 @@ const UniversityDashboard = () => {
         issueDate: new Date().toISOString().split('T')[0],
     });
     const [pdfFile, setPdfFile] = useState<File | null>(null);
-    const [qrCode, setQrCode] = useState<string>("");
+    const [qrCodeData, setQrCodeData] = useState<string>("");
     const [certificateId, setCertificateId] = useState<string>("");
     const [txHash, setTxHash] = useState<string>("");
     const [issuanceStep, setIssuanceStep] = useState<IssuanceStep>('idle');
+    const [universityDetails, setUniversityDetails] = useState({ name: '', publicKey: '' });
+
+    useEffect(() => {
+        const fetchUniversityDetails = async () => {
+            const token = localStorage.getItem('universityAuthToken');
+            if (token) {
+                try {
+                    const response = await axios.get('http://localhost:3000/get-university-details', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    setUniversityDetails(response.data);
+                } catch (error) {
+                    toast({ title: "Error fetching university data", description: "Could not retrieve your university's name and public key. Please try refreshing the page.", variant: "destructive" });
+                }
+            }
+        };
+        fetchUniversityDetails();
+    }, []);
+
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -34,9 +53,8 @@ const UniversityDashboard = () => {
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             setPdfFile(e.target.files[0]);
-            // Reset state if a new file is chosen
             setIssuanceStep('idle');
-            setQrCode('');
+            setQrCodeData('');
             setCertificateId('');
             setTxHash('');
         }
@@ -47,11 +65,14 @@ const UniversityDashboard = () => {
             toast({ title: "Missing Information", description: "Please fill all fields and upload a PDF.", variant: "destructive" });
             return;
         }
+        if (!universityDetails.name || !universityDetails.publicKey) {
+            toast({ title: "University Details Missing", description: "Could not find your university's details. Please refresh and try again.", variant: "destructive" });
+            return;
+        }
 
         const token = localStorage.getItem('universityAuthToken');
 
         try {
-            // STEP 1: Verify PDF Signature
             setIssuanceStep('verifying');
             const verificationFormData = new FormData();
             verificationFormData.append('pdf', pdfFile);
@@ -60,7 +81,6 @@ const UniversityDashboard = () => {
             });
             toast({ title: "Step 1/4: Signature Verified", description: "The certificate's digital signature is valid." });
 
-            // STEP 2: Upload to IPFS
             setIssuanceStep('uploading');
             const uploadFormData = new FormData();
             uploadFormData.append('pdf', pdfFile);
@@ -70,18 +90,18 @@ const UniversityDashboard = () => {
             const { ipfsCid } = uploadResponse.data;
             toast({ title: "Step 2/4: Uploaded to IPFS", description: `File pinned with CID: ${ipfsCid.substring(0, 10)}...` });
 
-            // STEP 3: Prepare Hash & Transaction
             setIssuanceStep('hashing');
             const hashResponse = await axios.post('http://localhost:3000/prepare-certificate-hash', {
                 ipfsCid,
                 studentName: formData.studentName,
                 courseName: formData.courseName,
                 issueDate: formData.issueDate,
+                grade: formData.grade
             }, { headers: { 'Authorization': `Bearer ${token}` } });
+
             const { unsignedTx, certificateId: newCertId, certificateHash } = hashResponse.data;
             toast({ title: "Step 3/4: Transaction Prepared", description: `Certificate hash created: ${certificateHash.substring(0, 12)}...` });
 
-            // STEP 4: User Signs and Sends Transaction
             setIssuanceStep('signing');
             if (!window.ethereum) {
                 throw new Error("MetaMask is not installed. Please install it to issue certificates.");
@@ -89,15 +109,21 @@ const UniversityDashboard = () => {
             const provider = new ethers.BrowserProvider(window.ethereum);
             const signer = await provider.getSigner();
             
-            // Send the transaction
             const tx = await signer.sendTransaction(unsignedTx);
             toast({ title: "Step 4/4: Transaction Sent", description: "Waiting for blockchain confirmation..." });
 
-            // Wait for the transaction to be mined
             const receipt = await tx.wait();
             
+            // Assemble the raw data string for verification
+            const rawQrData = `${ipfsCid}|${formData.studentName}|${universityDetails.name}|${formData.courseName}|${formData.issueDate}|${await signer.getAddress()}|${universityDetails.publicKey}|${newCertId}|${formData.grade}`;
+
+            // Create a full verification URL to embed in the QR code
+            const verificationUrl = `${window.location.origin}/verify/result?qrData=${encodeURIComponent(rawQrData)}`;
+
+
             setCertificateId(newCertId);
-            setQrCode(ipfsCid); // QR code contains the IPFS CID for retrieval
+            // Set the state to the new, full verification URL
+            setQrCodeData(verificationUrl);
             setTxHash(receipt.hash);
             setIssuanceStep('confirmed');
             toast({ title: "Success!", description: "Certificate has been successfully recorded on the blockchain." });
@@ -110,7 +136,6 @@ const UniversityDashboard = () => {
         }
     };
     
-    // Helper to determine button text based on the current step
     const getButtonText = () => {
         switch (issuanceStep) {
             case 'idle': return 'Issue Certificate';
@@ -124,11 +149,10 @@ const UniversityDashboard = () => {
         }
     };
     
-    // --- UPDATED sendToStudent function ---
     const sendToStudent = () => {
         const subject = encodeURIComponent(`Your Certificate - ${formData.courseName}`);
         const body = encodeURIComponent(
-          `Dear ${formData.studentName},\n\nCongratulations! Your certificate has been issued.\n\nCertificate ID: ${certificateId}\nCGPA: ${formData.grade}\nIPFS Link: https://ipfs.io/ipfs/${qrCode}\nTransaction Hash: ${txHash}\n\nYou can verify your certificate at: ${window.location.origin}/verify\n\nBest regards,\nUniversity Portal`
+          `Dear ${formData.studentName},\n\nCongratulations! Your certificate has been issued.\n\nCertificate ID: ${certificateId}\nCGPA: ${formData.grade}\nTransaction Hash: ${txHash}\n\nYou can verify your certificate at: ${window.location.origin}/verify\n\nBest regards,\nUniversity Portal`
         );
         
         window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${formData.studentEmail}&su=${subject}&body=${body}`, '_blank');
@@ -165,7 +189,6 @@ const UniversityDashboard = () => {
                                     <Label htmlFor="courseName">Course Name</Label>
                                     <Input id="courseName" name="courseName" placeholder="Computer Science Fundamentals" value={formData.courseName} onChange={handleChange} />
                                 </div>
-                                {/* --- UPDATED CGPA Input --- */}
                                 <div className="space-y-2">
                                     <Label htmlFor="grade">CGPA</Label>
                                     <Input 
@@ -206,7 +229,7 @@ const UniversityDashboard = () => {
                         </CardContent>
                     </Card>
 
-                    {issuanceStep === 'confirmed' && qrCode && (
+                    {issuanceStep === 'confirmed' && qrCodeData && (
                         <Card>
                             <CardHeader>
                                 <CardTitle className="flex items-center"><CheckCircle className="text-green-500 mr-2" />Certificate Issued Successfully</CardTitle>
@@ -214,9 +237,9 @@ const UniversityDashboard = () => {
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 <div className="p-4 bg-secondary rounded-lg text-center">
-                                    <p className="text-sm font-medium mb-2">IPFS Document CID</p>
-                                    <QRCodeSVG value={qrCode} size={200} className="mx-auto" />
-                                    <p className="text-xs text-muted-foreground mt-2 break-all">{qrCode}</p>
+                                    <p className="text-sm font-medium mb-2">Certificate QR Code</p>
+                                    <QRCodeSVG value={qrCodeData} size={200} className="mx-auto" />
+                                    <p className="text-xs text-muted-foreground mt-2 break-all">{qrCodeData}</p>
                                 </div>
                                 <div className="p-3 bg-secondary rounded-lg">
                                     <p className="text-sm font-medium flex items-center"><Hash className="h-4 w-4 mr-2"/>Transaction Hash</p>
