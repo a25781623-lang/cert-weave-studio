@@ -104,11 +104,11 @@ const UniversityDashboard = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="grade">Grade</Label>
+                  <Label htmlFor="CGPA">CGPA</Label>
                   <Input
-                    id="grade"
-                    name="grade"
-                    placeholder="A+"
+                    id="CGPA"
+                    name="CGPA"
+                    placeholder="9.5+"
                     value={formData.grade}
                     onChange={handleChange}
                   />
