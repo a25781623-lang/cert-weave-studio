@@ -518,7 +518,8 @@ app.post('/verify-certificate-from-qr', async (req, res) => {
                 universityName,
                 walletAddress,
                 signature: signerName,
-                grade: grade || 'N/A' // Pass signature from metadata
+                grade: grade || 'N/A',
+                ipfsCid: ipfsCid // Pass signature from metadata
                 // Include any other data from the QR code that the frontend needs
             }
         });

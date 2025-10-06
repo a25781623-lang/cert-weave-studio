@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Shield, CheckCircle, XCircle, AlertCircle, ArrowLeft, Loader } from "lucide-react";
+import { Shield, CheckCircle, XCircle, AlertCircle, ArrowLeft, Loader, FileText } from "lucide-react";
 import axios from "axios";
 import { Certificate } from "@/types/certificate";
 
@@ -14,6 +14,7 @@ const VerificationResult = () => {
   const [verificationStatus, setVerificationStatus] = useState<'pending' | 'valid' | 'invalid'>('pending');
   const [certificateData, setCertificateData] = useState<Certificate | null>(null);
   const [errorMessage, setErrorMessage] = useState<string>("");
+  const [certificateUrl, setCertificateUrl] = useState<string>("");
 
   useEffect(() => {
     const verifyCertificate = async () => {
@@ -28,6 +29,13 @@ const VerificationResult = () => {
         if (response.data.valid) {
           setVerificationStatus('valid');
           setCertificateData(response.data.certificateData);
+
+          // Construct the certificate URL from the IPFS CID received from the server
+          const cid = response.data.certificateData.ipfsCid;
+          if (cid) {
+            setCertificateUrl(`https://dweb.link/ipfs/${cid}`);
+          }
+
         } else {
           setVerificationStatus('invalid');
           setErrorMessage(response.data.message);
@@ -105,7 +113,21 @@ const VerificationResult = () => {
               </Card>
             </>
           )}
-          <div className="text-center"> <Link to="/"> <Button size="lg">Verify Another Certificate</Button> </Link> </div>
+          <div className="text-center flex justify-center gap-4 pt-4">
+            {isValid && certificateUrl && (
+              <Button size="lg" asChild>
+                <a href={certificateUrl} target="_blank" rel="noopener noreferrer" className="gap-2">
+                  <FileText className="h-5 w-5" />
+                  Open Certificate
+                </a>
+              </Button>
+            )}
+            <Link to="/"> 
+              <Button size="lg" variant={isValid && certificateUrl ? "outline" : "default"}>
+                Verify Another Certificate
+              </Button> 
+            </Link> 
+          </div>
         </div>
       </main>
     </div>
