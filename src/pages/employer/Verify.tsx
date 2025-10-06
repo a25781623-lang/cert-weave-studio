@@ -1,32 +1,89 @@
+// src/pages/employer/Verify.tsx (Updated)
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Shield, Search, QrCode, GraduationCap } from "lucide-react";
+import { Shield, Search, GraduationCap } from "lucide-react"; 
 import { Link } from "react-router-dom";
+import { useToast } from "@/components/ui/use-toast";
+// Ethers is no longer needed here as the backend will handle verification
+// import { ethers } from 'ethers';
+
+// We still need the CertificateData type definition
+import { CertificateData } from "@/lib/hash"; 
+// The ABI is no longer needed on this page
+// import CertiChain from '@/abis/CertiChain.json';
+
 
 const EmployerVerify = () => {
-  // --- LOGICAL CHANGE 1: State updated to handle full QR data ---
-  const [qrData, setQrData] = useState("");
+  const [certificateId, setCertificateId] = useState("");
+  const [jsonFile, setJsonFile] = useState<File | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const { toast } = useToast();
 
-  // --- LOGICAL CHANGE 2: Navigation logic updated ---
-  const handleVerify = () => {
-    if (qrData) {
-      // Pass the data as a URL query parameter
-      navigate(`/verify/result?qrData=${encodeURIComponent(qrData)}`);
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && file.type === 'application/json') {
+      setJsonFile(file);
+    } else {
+      setJsonFile(null);
+      toast({
+        variant: 'destructive',
+        title: 'Invalid File Type',
+        description: 'Please upload a valid .json file.',
+      });
     }
   };
 
-  const handleQRScan = () => {
-    // In a real implementation, this would open a QR scanner
-    // and populate the input field with the result.
-    alert("QR Scanner would open here. For this demo, please paste the full data string from the QR code into the input field.");
+  // --- THIS IS THE UPDATED LOGIC BASED ON YOUR IDEA ---
+  const handleVerify = async () => {
+    if (!certificateId.trim() || !jsonFile) {
+      toast({
+        title: 'Missing Information',
+        description: 'Please provide a Certificate ID and upload the certificate JSON file.',
+      });
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const fileContent = await jsonFile.text();
+      const data: CertificateData = JSON.parse(fileContent);
+
+      // 1. Construct the pipe-separated data string in the correct order
+      const rawQrData = [
+        data.ipfsCid,
+        data.studentName,
+        data.universityName,
+        data.courseName,
+        data.issueDate,
+        data.walletAddress,
+        data.publicKey,
+        certificateId, // Use the ID from the input field
+        data.grade
+      ].join('|');
+
+      // 2. Navigate to the existing, working result URL with the data
+      navigate(`/verify/result?qrData=${encodeURIComponent(rawQrData)}`);
+
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Verification Failed',
+        description: error.message || 'Could not process the JSON file.',
+      });
+      setIsLoading(false);
+    }
+    // No need for a `finally` block as we navigate away on success
   };
 
   return (
+    // Your JSX remains exactly the same
     <div className="min-h-screen bg-gradient-to-br from-primary/10 via-background to-accent/10">
       <header className="border-b border-border bg-card/50 backdrop-blur">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
@@ -56,7 +113,7 @@ const EmployerVerify = () => {
             </div>
             <h2 className="text-4xl font-bold text-foreground">Verify Certificate</h2>
             <p className="text-lg text-muted-foreground">
-              Enter the certificate data or scan a QR code to verify authenticity
+              Enter the Certificate ID and upload the data file to verify authenticity
             </p>
           </div>
 
@@ -69,37 +126,31 @@ const EmployerVerify = () => {
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-2">
-                {/* --- LOGICAL CHANGE 3: Label and placeholder updated for clarity --- */}
-                <Label htmlFor="qrData">Certificate Data</Label>
+                <Label htmlFor="certId">Certificate ID</Label>
+                <Input
+                  id="certId"
+                  placeholder="e.g., CERT-1672532..."
+                  value={certificateId}
+                  onChange={(e) => setCertificateId(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="certFile">Certificate Data File (.json)</Label>
                 <div className="flex gap-2">
                   <Input
-                    id="qrData"
-                    placeholder="Paste full data string from QR code here"
-                    value={qrData}
-                    onChange={(e) => setQrData(e.target.value)}
-                    className="flex-1"
-                    onKeyDown={(e) => e.key === 'Enter' && handleVerify()}
+                    id="certFile"
+                    type="file"
+                    accept=".json"
+                    onChange={handleFileChange}
+                    className="flex-1 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
                   />
-                  <Button onClick={handleVerify}>
+                  <Button onClick={handleVerify} disabled={isLoading}>
                     <Search className="h-4 w-4 mr-2" />
-                    Verify
+                    {isLoading ? 'Verifying...' : 'Verify'}
                   </Button>
                 </div>
               </div>
-
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t border-border" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-card px-2 text-muted-foreground">Or</span>
-                </div>
-              </div>
-
-              <Button variant="outline" onClick={handleQRScan} className="w-full gap-2">
-                <QrCode className="h-4 w-4" />
-                Scan QR Code
-              </Button>
             </CardContent>
           </Card>
 
@@ -109,19 +160,19 @@ const EmployerVerify = () => {
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li className="flex items-start gap-2">
                   <span className="text-primary mt-0.5">•</span>
-                  <span>Each certificate is stored on the blockchain with a unique identifier</span>
+                  <span>The student provides their Certificate ID and the .json data file they received via email.</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-primary mt-0.5">•</span>
-                  <span>Digital signatures ensure authenticity and prevent tampering</span>
+                  <span>The hash is reconstructed from the file and compared against the one stored on the blockchain.</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-primary mt-0.5">•</span>
-                  <span>Verification happens in real-time against the blockchain</span>
+                  <span>Verification happens in real-time against the blockchain.</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-primary mt-0.5">•</span>
-                  <span>Revoked certificates are immediately flagged in the system</span>
+                  <span>Revoked certificates are immediately flagged in the system.</span>
                 </li>
               </ul>
             </CardContent>

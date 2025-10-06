@@ -5,13 +5,24 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { toast } from "@/hooks/use-toast";
+import { useToast } from "@/components/ui/use-toast";
 import { QRCodeSVG } from "qrcode.react";
 import { Upload, Send, CheckCircle, Loader, AlertTriangle, Hash } from "lucide-react";
 import axios from "axios";
 
 // Define the steps for UI feedback
 type IssuanceStep = 'idle' | 'verifying' | 'uploading' | 'hashing' | 'signing' | 'confirmed' | 'failed';
+
+interface CertificateDataForEmail {
+  ipfsCid: string;
+  studentName: string;
+  universityName: string;
+  courseName: string;
+  issueDate: string;
+  walletAddress: string;
+  publicKey: string;
+  grade: string;
+}
 
 const UniversityDashboard = () => {
     const [formData, setFormData] = useState({
@@ -27,6 +38,8 @@ const UniversityDashboard = () => {
     const [txHash, setTxHash] = useState<string>("");
     const [issuanceStep, setIssuanceStep] = useState<IssuanceStep>('idle');
     const [universityDetails, setUniversityDetails] = useState({ name: '', publicKey: '' });
+    const [certificateDataForEmail, setCertificateDataForEmail] = useState<CertificateDataForEmail | null>(null);
+    const { toast } = useToast();
 
     useEffect(() => {
         const fetchUniversityDetails = async () => {
@@ -57,12 +70,13 @@ const UniversityDashboard = () => {
             setQrCodeData('');
             setCertificateId('');
             setTxHash('');
+            setCertificateDataForEmail(null);
         }
     };
 
     const handleIssueCertificate = async () => {
-        if (!pdfFile || !formData.studentName || !formData.courseName || !formData.issueDate) {
-            toast({ title: "Missing Information", description: "Please fill all fields and upload a PDF.", variant: "destructive" });
+        if (!pdfFile || !formData.studentName || !formData.courseName || !formData.issueDate || !formData.studentEmail) {
+            toast({ title: "Missing Information", description: "Please fill all fields (including student email) and upload a PDF.", variant: "destructive" });
             return;
         }
         if (!universityDetails.name || !universityDetails.publicKey) {
@@ -92,14 +106,12 @@ const UniversityDashboard = () => {
 
             setIssuanceStep('hashing');
             const hashResponse = await axios.post('http://localhost:3000/prepare-certificate-hash', {
+                ...formData,
                 ipfsCid,
-                studentName: formData.studentName,
-                courseName: formData.courseName,
-                issueDate: formData.issueDate,
-                grade: formData.grade
             }, { headers: { 'Authorization': `Bearer ${token}` } });
 
-            const { unsignedTx, certificateId: newCertId, certificateHash } = hashResponse.data;
+            const { unsignedTx, certificateId: newCertId, certificateHash, certificateDataForJson } = hashResponse.data;
+            setCertificateDataForEmail(certificateDataForJson);
             toast({ title: "Step 3/4: Transaction Prepared", description: `Certificate hash created: ${certificateHash.substring(0, 12)}...` });
 
             setIssuanceStep('signing');
@@ -108,21 +120,21 @@ const UniversityDashboard = () => {
             }
             const provider = new ethers.BrowserProvider(window.ethereum);
             const signer = await provider.getSigner();
-            
+
             const tx = await signer.sendTransaction(unsignedTx);
             toast({ title: "Step 4/4: Transaction Sent", description: "Waiting for blockchain confirmation..." });
 
             const receipt = await tx.wait();
-            
-            // Assemble the raw data string for verification
-            const rawQrData = `${ipfsCid}|${formData.studentName}|${universityDetails.name}|${formData.courseName}|${formData.issueDate}|${await signer.getAddress()}|${universityDetails.publicKey}|${newCertId}|${formData.grade}`;
 
-            // Create a full verification URL to embed in the QR code
+            if (!receipt) {
+                throw new Error("Transaction failed: No receipt was returned.");
+            }
+
+            const rawQrData = `${ipfsCid}|${formData.studentName}|${universityDetails.name}|${formData.courseName}|${formData.issueDate}|${await signer.getAddress()}|${universityDetails.publicKey}|${newCertId}|${formData.grade}`;
             const verificationUrl = `${window.location.origin}/verify/result?qrData=${encodeURIComponent(rawQrData)}`;
 
 
             setCertificateId(newCertId);
-            // Set the state to the new, full verification URL
             setQrCodeData(verificationUrl);
             setTxHash(receipt.hash);
             setIssuanceStep('confirmed');
@@ -135,7 +147,7 @@ const UniversityDashboard = () => {
             toast({ title: "Issuance Failed", description: errorMessage, variant: "destructive" });
         }
     };
-    
+
     const getButtonText = () => {
         switch (issuanceStep) {
             case 'idle': return 'Issue Certificate';
@@ -148,14 +160,33 @@ const UniversityDashboard = () => {
             default: return 'Issue Certificate';
         }
     };
-    
-    const sendToStudent = () => {
-        const subject = encodeURIComponent(`Your Certificate - ${formData.courseName}`);
-        const body = encodeURIComponent(
-          `Dear ${formData.studentName},\n\nCongratulations! Your certificate has been issued.\n\nCertificate ID: ${certificateId}\nCGPA: ${formData.grade}\nTransaction Hash: ${txHash}\n\nYou can verify your certificate at: ${window.location.origin}/verify\n\nBest regards,\nUniversity Portal`
-        );
-        
-        window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${formData.studentEmail}&su=${subject}&body=${body}`, '_blank');
+
+    const sendToStudent = async () => {
+        if (!certificateDataForEmail || !certificateId) {
+            toast({ title: "Error", description: "Certificate data is not available to send.", variant: "destructive" });
+            return;
+        }
+
+        const token = localStorage.getItem('universityAuthToken');
+        try {
+            toast({ title: "Sending Email...", description: "Please wait." });
+
+            await axios.post('http://localhost:3000/send-certificate-email', {
+                studentEmail: formData.studentEmail,
+                studentName: formData.studentName,
+                certificateId: certificateId,
+                certificateData: certificateDataForEmail,
+            }, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            toast({ title: "Email Sent Successfully!", description: `Certificate details and data file sent to ${formData.studentEmail}` });
+
+        } catch (error: any) {
+            console.error("Failed to send email:", error);
+            const errorMessage = error.response?.data?.message || "An unexpected error occurred.";
+            toast({ title: "Email Failed to Send", description: errorMessage, variant: "destructive" });
+        }
     };
 
     return (
@@ -191,14 +222,14 @@ const UniversityDashboard = () => {
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="grade">CGPA</Label>
-                                    <Input 
-                                        id="grade" 
+                                    <Input
+                                        id="grade"
                                         name="grade"
                                         type="number"
                                         step="0.1"
-                                        placeholder="e.g., 9.5" 
-                                        value={formData.grade} 
-                                        onChange={handleChange} 
+                                        placeholder="e.g., 9.5"
+                                        value={formData.grade}
+                                        onChange={handleChange}
                                     />
                                 </div>
                             </div>
@@ -217,11 +248,13 @@ const UniversityDashboard = () => {
                                         </span>
                                     )}
                                 </div>
+                                {/* --- FIX: The missing closing div tag was here --- */}
                             </div>
                             <Button
                                 onClick={handleIssueCertificate}
                                 disabled={issuanceStep !== 'idle' && issuanceStep !== 'failed'}
                                 className="w-full"
+                                // --- FIX: Removed the invalid '_BANNED_' props ---
                             >
                                 <Loader className={`mr-2 h-4 w-4 animate-spin ${['verifying', 'uploading', 'hashing', 'signing'].includes(issuanceStep) ? 'inline-block' : 'hidden'}`} />
                                 {getButtonText()}
@@ -242,7 +275,7 @@ const UniversityDashboard = () => {
                                     <p className="text-xs text-muted-foreground mt-2 break-all">{qrCodeData}</p>
                                 </div>
                                 <div className="p-3 bg-secondary rounded-lg">
-                                    <p className="text-sm font-medium flex items-center"><Hash className="h-4 w-4 mr-2"/>Transaction Hash</p>
+                                    <p className="text-sm font-medium flex items-center"><Hash className="h-4 w-4 mr-2" />Transaction Hash</p>
                                     <a href={`https://sepolia.etherscan.io/tx/${txHash}`} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline break-all">
                                         {txHash}
                                     </a>
@@ -254,14 +287,14 @@ const UniversityDashboard = () => {
                             </CardContent>
                         </Card>
                     )}
-                     {issuanceStep === 'failed' && (
+                    {issuanceStep === 'failed' && (
                         <Card className="border-destructive">
-                             <CardHeader>
+                            <CardHeader>
                                 <CardTitle className="flex items-center"><AlertTriangle className="text-destructive mr-2" />Issuance Failed</CardTitle>
                                 <CardDescription>The process was interrupted. Please check the console for errors and try again.</CardDescription>
                             </CardHeader>
                         </Card>
-                     )}
+                    )}
                 </div>
             </main>
         </div>
