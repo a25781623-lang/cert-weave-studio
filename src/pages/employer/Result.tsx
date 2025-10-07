@@ -25,7 +25,9 @@ const VerificationResult = () => {
         return;
       }
       try {
-        const response = await axios.post('http://localhost:3000/verify-certificate-from-qr', { qrData });
+        const apiUrl = `${import.meta.env.VITE_API_BASE_URL}/verify-certificate-from-qr`;
+        const response = await axios.post(apiUrl, { qrData });
+        
         if (response.data.valid) {
           setVerificationStatus('valid');
           setCertificateData(response.data.certificateData);

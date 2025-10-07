@@ -162,7 +162,7 @@ app.post('/register', async (req, res) => {
             console.log(`Token created and stored. Expiration: 1 hour.`);
             console.log("Pending verifications object:", Object.keys(pendingVerifications));
 
-            const verificationLink = `http://localhost:8080/create-account/${verificationToken}`;
+            const verificationLink = `${import.meta.env.VITE_API_BASE_URL}create-account/${verificationToken}`;
             await transporter.sendMail({
                 from: '"CertiChain Admin" <admin@certichain.com>',
                 to: email,
@@ -358,7 +358,7 @@ app.post('/verify-signature', authenticateToken, upload.single('pdf'), async (re
         formData.append('pdf', fs.createReadStream(pdfPath));
         formData.append('public_key', fs.createReadStream(publicKeyPath));
 
-        const response = await axios.post('http://localhost:5000/verify-pdf', formData, { headers: formData.getHeaders() });
+        const response = await axios.post(`${process.env.PYTHON_API_URL}/verify-pdf`, formData, { headers: formData.getHeaders() });
 
         fs.unlinkSync(publicKeyPath);
 

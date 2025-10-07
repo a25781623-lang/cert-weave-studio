@@ -44,10 +44,10 @@ const Index = () => {
               </div>
             </div>
             <div className="flex gap-3">
-              <Link to="/verify">
+              <Link to="${import.meta.env.VITE_API_BASE_URL}/employer/verify">
                 <Button variant="outline">Verify Certificate</Button>
               </Link>
-              <Link to="/university/login">
+              <Link to="${import.meta.env.VITE_API_BASE_URL}/university/login">
                 <Button>University Login</Button>
               </Link>
             </div>
@@ -148,7 +148,7 @@ const Index = () => {
                         <span>Generate QR codes for easy student sharing</span>
                       </li>
                     </ul>
-                    <Link to="/university/register">
+                    <Link to="${import.meta.env.VITE_API_BASE_URL}/university/register">
                       <Button className="mt-6">Get Started</Button>
                     </Link>
                   </div>
@@ -170,7 +170,7 @@ const Index = () => {
                         <span>Check certificate status in real-time</span>
                       </li>
                     </ul>
-                    <Link to="/verify">
+                    <Link to="${import.meta.env.VITE_API_BASE_URL}/employer/verify">
                       <Button variant="outline" className="mt-6">
                         Verify Now
                       </Button>
@@ -286,7 +286,7 @@ const Index = () => {
 
               {/* --- THIS IS THE UPDATED BUTTON --- */}
               <Button size="lg" asChild className="gap-2 text-lg px-8 py-6">
-                <a href="/CertificateSignerSetup_v1.0.0.exe" download>
+                <a href="/CertificateSignerSetup.exe" download>
                   <Download className="h-5 w-5" />
                   Download CertificateSigner v1.0.0
                 </a>

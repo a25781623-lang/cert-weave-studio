@@ -21,10 +21,12 @@ const UniversityLogin = () => {
 
     try {
       // Send login credentials to the backend
-      const response = await axios.post('http://localhost:3000/login', {
+      const apiUrl = `${import.meta.env.VITE_API_BASE_URL}/login`;
+      const response = await axios.post(apiUrl, {
         email,
         password,
       });
+    
 
       // If login is successful, the backend sends back a token.
       // We save this token in the browser's local storage.
@@ -89,7 +91,7 @@ const UniversityLogin = () => {
             </Button>
             <p className="text-sm text-muted-foreground text-center">
               Don't have an account?{" "}
-              <Link to="/university/register" className="text-primary hover:underline font-medium">
+              <Link to="${import.meta.env.VITE_API_BASE_URL}/university/register" className="text-primary hover:underline font-medium">
                 Register here
               </Link>
             </p>

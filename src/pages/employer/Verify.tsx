@@ -69,7 +69,7 @@ const EmployerVerify = () => {
       ].join('|');
 
       // 2. Navigate to the existing, working result URL with the data
-      navigate(`/verify/result?qrData=${encodeURIComponent(rawQrData)}`);
+      navigate(`${import.meta.env.VITE_API_BASE_URL}/verify/result?qrData=${encodeURIComponent(rawQrData)}`);
 
     } catch (error: any) {
       toast({

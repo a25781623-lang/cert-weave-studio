@@ -56,7 +56,7 @@ const ViewCertificates = () => {
         ].join('|');
 
         // Call the backend endpoint to perform the verification
-        const response = await fetch('http://localhost:3000/verify-certificate-from-qr', {
+        const response = await fetch('${import.meta.env.VITE_API_BASE_URL}/verify-certificate-from-qr', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
