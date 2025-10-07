@@ -56,6 +56,9 @@ const CreateAccount = () => {
 
     setLoading(true);
     try {
+      const cleanedToken = decodeURIComponent(token || ''); 
+      if (!cleanedToken) throw new Error("Verification token missing.");
+
       // Step 1: Get the current wallet address from MetaMask
       const provider = new ethers.BrowserProvider((window as any).ethereum);
       const signer = await provider.getSigner();
