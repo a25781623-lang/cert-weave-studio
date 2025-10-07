@@ -1,5 +1,5 @@
 // Import necessary libraries
-require('dotenv').config();
+import 'dotenv/config';
 const express = require('express');
 const { ethers } = require('ethers');
 const cors = require('cors');
