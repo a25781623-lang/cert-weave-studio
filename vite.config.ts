@@ -10,8 +10,9 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    base: './',
   },
-  base: './'
+  
   plugins: [react()],
   envDir: './backend',
   envPrefix: 'VITE_',
