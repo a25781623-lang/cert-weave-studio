@@ -2,7 +2,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+// FIX: Changed from BrowserRouter to HashRouter as Router to fix routing on static hosts
+import { HashRouter as Router, Routes, Route } from "react-router-dom"; 
 
 // Import all the pages for your application
 import Index from "./pages/Index";
@@ -23,7 +24,8 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
+      {/* FIX: Using Router (which is HashRouter) */}
+      <Router> 
         <Routes>
           {/* Main and Employer Routes */}
           <Route path="/" element={<Index />} />
@@ -43,7 +45,7 @@ const App = () => (
           {/* Catch-all route for pages that don't exist */}
           <Route path="*" element={<NotFound />} />
         </Routes>
-      </BrowserRouter>
+      </Router>
     </TooltipProvider>
   </QueryClientProvider>
 );
