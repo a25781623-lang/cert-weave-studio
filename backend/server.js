@@ -549,7 +549,7 @@ app.post('/verify-certificate-from-qr', async (req, res) => {
         formData.append('pdf', fs.createReadStream(pdfPath));
         formData.append('public_key', fs.createReadStream(publicKeyPath));
 
-        const pythonResponse = await axios.post('http://localhost:5000/verify-pdf', formData, { headers: formData.getHeaders() });
+        const pythonResponse = await axios.post(`${process.env.PYTHON_API_URL}/verify-pdf`, formData, { headers: formData.getHeaders() });
 
         // Clean up temporary files
         fs.unlinkSync(pdfPath);
