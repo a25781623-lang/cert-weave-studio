@@ -170,7 +170,7 @@ const Index = () => {
                         <span>Check certificate status in real-time</span>
                       </li>
                     </ul>
-                    <Link to="${import.meta.env.VITE_API_BASE_URL}/employer/verify">
+                    <Link to='${import.meta.env.VITE_API_BASE_URL}/employer/verify'>
                       <Button variant="outline" className="mt-6">
                         Verify Now
                       </Button>

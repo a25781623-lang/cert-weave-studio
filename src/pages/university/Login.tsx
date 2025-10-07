@@ -91,7 +91,7 @@ const UniversityLogin = () => {
             </Button>
             <p className="text-sm text-muted-foreground text-center">
               Don't have an account?{" "}
-              <Link to="${import.meta.env.VITE_API_BASE_URL}/university/register" className="text-primary hover:underline font-medium">
+              <Link to='${import.meta.env.VITE_API_BASE_URL}/university/register' className="text-primary hover:underline font-medium">
                 Register here
               </Link>
             </p>
