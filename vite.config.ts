@@ -1,4 +1,4 @@
-// vite.config.ts (Correct and Final)
+// vite.config.ts
 
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
@@ -10,12 +10,15 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
-    base: './',
   },
+  // CRITICAL FIX: Forces relative paths for all assets to work with HashRouter on static hosts
+  // THIS MUST BE FOLLOWED BY A COMMA (,)
+  base: './', 
   
   plugins: [react()],
   envDir: './backend',
   envPrefix: 'VITE_',
+  
   // This alias section is now correctly in place.
   resolve: {
     alias: {
