@@ -164,7 +164,7 @@ app.post('/register', async (req, res) => {
             console.log(`Token created and stored. Expiration: 1 hour.`);
             console.log("Pending verifications object:", Object.keys(pendingVerifications));
 
-            const verificationLink = `${import.meta.env.VITE_API_BASE_URL}create-account/${verificationToken}`;
+            const verificationLink = `${process.env.FRONTEND_URL}/create-account/${verificationToken}`;
             await transporter.sendMail({
                 from: '"CertiChain Admin" <admin@certichain.com>',
                 to: email,
