@@ -1,5 +1,6 @@
 // Import necessary libraries
 import 'dotenv/config';
+import { Resend } from 'resend';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const express = require('express');
@@ -469,8 +470,8 @@ app.post('/send-certificate-email', authenticateToken, async (req, res) => {
         // Convert the certificate data object into a formatted JSON string
         const jsonContent = JSON.stringify(certificateData, null, 2);
 
-        const mailOptions = {
-            from: '"CertiChain Admin" <admin@certichain.com>',
+        await resend.emails.send({
+            from: 'onboarding@resend.dev', // You can change this to a custom domain
             to: studentEmail,
             subject: 'Your Digital Certificate Has Been Issued!',
             html: `
@@ -485,10 +486,9 @@ app.post('/send-certificate-email', authenticateToken, async (req, res) => {
                 {
                     filename: `${certificateId}.json`,
                     content: Buffer.from(jsonContent, 'utf-8'),
-                    contentType: 'application/json'
                 }
             ]
-        };
+        });
         console.log('--- Preparing to send email with attachment: ---',mailOptions.attachments);
 
         let info = await transporter.sendMail(mailOptions);
