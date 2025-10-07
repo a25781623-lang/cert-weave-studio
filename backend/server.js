@@ -5,7 +5,7 @@ const require = createRequire(import.meta.url);
 const express = require('express');
 const { ethers } = require('ethers');
 const cors = require('cors');
-const nodemailer = require('nodemailer');
+//const nodemailer = require('nodemailer');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const multer = require('multer');
@@ -108,12 +108,7 @@ const contractABI = [
 ];
 const contractAddress = process.env.CONTRACT_ADDRESS;
 
-// --- Nodemailer (Ethereal) ---
-const transporter = nodemailer.createTransport({
-    host: 'smtp.ethereal.email',
-    port: 587,
-    auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
-});
+const resend = new Resend(process.env.RESEND_API_KEY)
 
 // --- In-memory store (temporary) ---
 const pendingVerifications = {};
@@ -165,8 +160,8 @@ app.post('/register', async (req, res) => {
             console.log("Pending verifications object:", Object.keys(pendingVerifications));
 
             const verificationLink = `${process.env.FRONTEND_URL}/create-account/${verificationToken}`;
-            await transporter.sendMail({
-                from: '"CertiChain Admin" <admin@certichain.com>',
+           await resend.emails.send({
+                from: 'onboarding@resend.dev', // You can change this to a custom domain
                 to: email,
                 subject: 'Verify Your University Registration',
                 html: `<p>Click this link to set up your account:</p><a href="${verificationLink}">${verificationLink}</a>`,
