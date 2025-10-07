@@ -82,8 +82,7 @@ const UniversityRegister = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      const apiUrl = `${import.meta.env.VITE_API_BASE_URL}/register`;
-      const response = await axios.post(apiUrl, formData);
+      await axios.post("${import.meta.env.VITE_API_BASE_URL}/register", formData);
       setEmailSent(true);
       toast({
         title: "Verification Email Sent",
@@ -222,7 +221,7 @@ const UniversityRegister = () => {
             <p className="text-sm text-muted-foreground text-center">
               Already have an account?{" "}
               <Link
-                to="${import.meta.env.VITE_API_BASE_URL}/university/login"
+                to="/university/login"
                 className="text-primary hover:underline font-medium"
               >
                 Sign in here
