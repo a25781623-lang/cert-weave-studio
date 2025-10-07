@@ -21,6 +21,15 @@ export default tseslint.config(
       ...reactHooks.configs.recommended.rules,
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
       "@typescript-eslint/no-unused-vars": "off",
+      // --- START FIX: Allow backticks for template literals ---
+      "@typescript-eslint/quotes": [
+        "error",
+        "single",
+        {
+          "allowTemplateLiterals": true // This tells the linter to allow backticks if a variable is inside.
+        }
+      ]
+      // --- END FIX ---
     },
   },
 );
