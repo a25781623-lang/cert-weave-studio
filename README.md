@@ -147,7 +147,7 @@ The **Certificate Signer** desktop app runs entirely offline. It generates an RS
 
 ## Repository 1 — Certificate Signer (Python Desktop App)
 
-> 🔗 **GitHub:** [https://github.com/a25781623-lang/cert-weave-studio](https://github.com/a25781623-lang/cert-weave-studio)
+> 🔗 **GitHub:** [https://github.com/a25781623-lang/CertificateSigner](https://github.com/a25781623-lang/CertificateSigner)
 
 ### Purpose
 
