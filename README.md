@@ -2,6 +2,10 @@
 
 A full-stack, tamper-proof academic certificate platform combining an **offline Python desktop app** (Certificate Signer) with a **blockchain-powered web platform** (CertiChain) to issue, store, and verify digital certificates end-to-end.
 
+> **Related Repository:** The offline desktop signing tool that pairs with this platform lives here:
+> 🔗 **[Certificate Signer — PyQt5 Desktop App](https://github.com/a25781623-lang/cert-weave-studio)**
+> *(Key generation, USB storage, and PDF digital signing — runs fully offline)*
+
 ---
 
 ## Table of Contents
@@ -142,6 +146,8 @@ The **Certificate Signer** desktop app runs entirely offline. It generates an RS
 ---
 
 ## Repository 1 — Certificate Signer (Python Desktop App)
+
+> 🔗 **GitHub:** [https://github.com/a25781623-lang/cert-weave-studio](https://github.com/a25781623-lang/cert-weave-studio)
 
 ### Purpose
 
