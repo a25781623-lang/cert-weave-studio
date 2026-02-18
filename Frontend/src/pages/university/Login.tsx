@@ -21,7 +21,7 @@ const UniversityLogin = () => {
 
     try {
       // Send login credentials to the backend
-      const response = await axios.post(`import.meta.env.VITE_BACKEND_URL/login`, {
+      const response = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/login`, {
         email,
         password,
       });

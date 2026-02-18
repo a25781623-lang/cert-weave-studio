@@ -11,6 +11,7 @@ const axios = require('axios');
 const fs = require('fs'); // <--- THIS IS THE CORRECTED LINE
 const FormData = require('form-data');
 const { PinataSDK } = require('pinata-web3');
+const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
 
 
@@ -19,15 +20,11 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// --- Simple In-Memory Database (for development) ---
-const usersByEmail = {
-  "adityabnw07@gmail.com": {
-    "email": "adityabnw07@gmail.com",
-    "universityName": "IITD",
-    "walletAddress": "0xb3491948d774a6709cf19D8fD28A0b6399A4a70e",
-    "hashedPassword": "$2b$10$IHfHDiTL7XlGlPtnM.ChquAJk1wBerXXwUg8c5vdLfCnhB8Mb/t8K"
-  }
-};
+// --- Migrated to Supabase (for production) ---
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SECRET_KEY
+);
 const verifiedFiles={};
 
 // --- Multer Configuration for file uploads ---
@@ -146,15 +143,19 @@ const authenticateToken = (req, res, next) => {
         const token = authHeader && authHeader.split(' ')[1];
         if (token == null) return res.sendStatus(401);
 
-        jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+        jwt.verify(token, process.env.JWT_SECRET, async (err, decoded) => {
                 if (err) {
                         console.error("JWT Verification Error:", err.message);
                         return res.sendStatus(403);
                 }
-                const user = usersByEmail[decoded.email.toLowerCase()];
-                if (!user) {
+                const { data: user, error } = await supabase
+                        .from(`${process.env.SUPABASE_TABLE_NAME}`)
+                        .select('*')
+                        .eq('email', decoded.email.toLowerCase())
+                        .single();
+                if (error || !user) {
                         return res.status(401).json({ message: "User no longer exists." });
-                }
+                        }
                 req.user=user;
                 next();
         });
@@ -334,21 +335,27 @@ app.post('/finalize-registration', async (req, res) => {
 
                 // --- DEBUGGING: Deleting the token now ---
                 console.log("Deleting token from pendingVerifications.");
-                delete pendingVerifications[token];
+                
                 console.log("Pending verifications object after deletion:", Object.keys(pendingVerifications));
 
                 console.log(`Finalizing account for ${registrationData.universityName}.`);
 
                 const hashedPassword = await bcrypt.hash(password, 10);
-                const newUser = {
-                        email: registrationData.email,
-                        universityName: registrationData.universityName,
-                        walletAddress: correctWalletAddress,
-                        hashedPassword: hashedPassword,
-                };
-                // DIRECT STORAGE: Use the email as the key
-                usersByEmail[newUser.email] = newUser;
-                console.log(`User for ${newUser.universityName} with address ${correctWalletAddress} saved. TxHash: ${txHash}`);
+                const { error } = await supabase
+                .from(`${process.env.SUPABASE_TABLE_NAME}`)
+                .insert([{
+                        email: registrationData.email.toLowerCase(),
+                        universityname: registrationData.universityName,
+                        walletaddress: correctWalletAddress,
+                        hashedpassword: hashedPassword
+                }]);
+                delete pendingVerifications[token];
+
+                if (error) {
+                console.error("Supabase Insert Error:", error);
+                return res.status(500).json({ message: 'Error saving user to database.' });
+                }
+                
 
                 res.status(201).json({ message: 'Account created successfully!' });
 
@@ -365,21 +372,25 @@ app.post('/finalize-registration', async (req, res) => {
 app.post('/login', async (req, res) => {
         const { email, password } = req.body;
         console.log("\n--- LOGIN ATTEMPT ---");
-        console.log("Current users in memory:", JSON.stringify(usersByEmail, null, 2));
         try {
-                const user = usersByEmail[email.toLowerCase()];
-                if (!user) {
-                        return res.status(401).json({ message: "Invalid email or password." });
+                const { data: user, error } = await supabase
+                        .from(`${process.env.SUPABASE_TABLE_NAME}`)
+                        .select('*')
+                        .eq('email', email.toLowerCase())
+                        .single();
+
+                if (error || !user) {
+                        return res.status(401).json({ message: "Couldn't retrive credention from Supabase" });
                 }
-                const isMatch = await bcrypt.compare(password, user.hashedPassword);
+                const isMatch = await bcrypt.compare(password, user.hashedpassword);
                 if (!isMatch) {
                         return res.status(401).json({ message: "Invalid email or password." });
                 }
                 const sessionToken = jwt.sign(
                         {
                                 email: user.email,
-                                universityName: user.universityName,
-                                walletAddress: user.walletAddress
+                                universityName: user.universityname,
+                                walletaddress: user.walletaddress
                         },
                         process.env.JWT_SECRET,
                         { expiresIn: '1h' }
@@ -394,8 +405,9 @@ app.post('/login', async (req, res) => {
 // --- NEW ENDPOINT: Get University Details ---
 app.get('/get-university-details', authenticateToken, async (req, res) => {
         // The walletAddress is securely taken from the authenticated user's token
-        const { walletAddress } = req.user;
-        console.log(`\n--- [/get-university-details] Attempting to fetch details for ${walletAddress} ---`);
+        const { walletaddress } = req.user;
+        
+        console.log(`\n--- [/get-university-details] Attempting to fetch details for ${walletaddress} ---`);
 
         try {
                 // --- FIX: Create a fresh provider and contract instance for each request ---
@@ -406,7 +418,7 @@ app.get('/get-university-details', authenticateToken, async (req, res) => {
                 console.log("Connection successful. Querying the smart contract...");
 
                 // Query the smart contract directly using the user's wallet address
-                const university = await contract.universities(walletAddress);
+                const university = await contract.universities(walletaddress);
                 
                 if (!university.isRegistered) {
                         return res.status(404).json({ message: "University not found or not registered." });
@@ -433,12 +445,12 @@ app.post('/verify-signature', authenticateToken, upload.single('pdf'), async (re
                 return res.status(400).json({ message: 'No PDF file uploaded.' });
         }
 
-        const { walletAddress, universityName } = req.user;
+        const { walletaddress, universityname } = req.user;
         const pdfPath = req.file.path;
-        const publicKeyPath = `./${universityName}_pubkey.pem`;
+        const publicKeyPath = `./${universityname}_pubkey.pem`;
 
         try {
-                const university = await contract.universities(walletAddress);
+                const university = await contract.universities(walletaddress);
                 const publicKey = university.publicKey;
                 if (!publicKey) throw new Error("Public key not found on-chain.");
 
@@ -457,7 +469,7 @@ app.post('/verify-signature', authenticateToken, upload.single('pdf'), async (re
                         const fileBuffer = fs.readFileSync(pdfPath);
                         const fileHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
                         verifiedFiles[fileHash] = {
-                                        verifiedBy: walletAddress,
+                                        verifiedBy: walletaddress,
                                         timestamp: Date.now()
                                 };
                         res.status(200).json({ message: 'PDF signature verified successfully.' });
@@ -475,7 +487,7 @@ app.post('/verify-signature', authenticateToken, upload.single('pdf'), async (re
 
 // --- Upload Certificate to IPFS Endpoint ---
 app.post('/upload-certificate', authenticateToken, upload.single('pdf'), async (req, res) => {
-        const { walletAddress} = req.user;
+        const { walletaddress} = req.user;
         if (!req.file) {
                 return res.status(400).json({ message: 'No PDF file uploaded.' });
         }
@@ -485,7 +497,7 @@ app.post('/upload-certificate', authenticateToken, upload.single('pdf'), async (
                 const currentFileHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
                 const verificationRecord = verifiedFiles[currentFileHash];
                 
-                if (!verificationRecord || verificationRecord.verifiedBy !== walletAddress) {
+                if (!verificationRecord || verificationRecord.verifiedBy !== walletaddress) {
                         return res.status(403).json({ 
                                 message: 'Security Violation: This file has not been verified or does not belong to you.' 
                         });
@@ -520,10 +532,10 @@ app.post('/prepare-certificate-hash', authenticateToken, async (req, res) => {
                 return res.status(400).json({ message: 'Missing required certificate data, including student email.' });
         }
 
-        const { walletAddress, universityName } = req.user;
+        const { walletaddress, universityname } = req.user;
 
         try {
-                const university = await contract.universities(walletAddress);
+                const university = await contract.universities(walletaddress);
                 const publicKey = university.publicKey;
                 if (!publicKey) {
                         return res.status(404).json({ message: 'Could not find a public key for this university on the blockchain.' });
@@ -535,16 +547,16 @@ app.post('/prepare-certificate-hash', authenticateToken, async (req, res) => {
                 const certificateDataForJson = {
                         ipfsCid: ipfsCid,
                         studentName: studentName,
-                        universityName: universityName,
+                        universityname: universityname,
                         courseName: courseName,
                         issueDate: issueDate,
-                        walletAddress: walletAddress,
+                        walletaddress: walletaddress,
                         publicKey: publicKey,
                         grade: grade || 'N/A' // Ensure grade is always present
                 };
 
                 // Create the string for hashing. The order MUST BE IDENTICAL on the verification side.
-                const stringToHash = `${ipfsCid}${studentName}${universityName}${courseName}${issueDate}${walletAddress}${publicKey}${grade || ''}`;
+                const stringToHash = `${ipfsCid}${studentName}${universityname}${courseName}${issueDate}${walletaddress}${publicKey}${grade || ''}`;
                 const hash = crypto.createHash('sha256').update(stringToHash).digest('hex');
 
                 const certificateId = `CERT-${Date.now()}`;
@@ -555,7 +567,7 @@ app.post('/prepare-certificate-hash', authenticateToken, async (req, res) => {
                                 certificateId,
                                 `0x${hash}`
                         ]),
-                        from: walletAddress,
+                        from: walletaddress,
                 };
 
                 console.log(`Prepared transaction for Certificate ID: ${certificateId} with Hash: 0x${hash}`);
@@ -629,12 +641,12 @@ app.post('/verify-certificate-from-qr', async (req, res) => {
 
         try {
                 // 1. Deconstruct the QR data
-                const [ipfsCid, studentName, universityName, courseName, issueDate, walletAddress, publicKey, certificateId, grade] = qrData.split('|');
-                if (!ipfsCid || !studentName || !universityName || !courseName || !issueDate || !walletAddress || !publicKey || !certificateId) {
+                const [ipfsCid, studentName, universityname, courseName, issueDate, walletaddress, publicKey, certificateId, grade] = qrData.split('|');
+                if (!ipfsCid || !studentName || !universityname || !courseName || !issueDate || !walletaddress || !publicKey || !certificateId) {
                         return res.status(400).json({ message: 'Malformed QR data. Some fields are missing.' });
                 }
                 // 2. Reconstruct the hash
-                const stringToHash = `${ipfsCid}${studentName}${universityName}${courseName}${issueDate}${walletAddress}${publicKey}${grade || ''}`;
+                const stringToHash = `${ipfsCid}${studentName}${universityname}${courseName}${issueDate}${walletaddress}${publicKey}${grade || ''}`;
                 const reconstructedHash = `0x${crypto.createHash('sha256').update(stringToHash).digest('hex')}`;
 
                 // 3. Verify on-chain
@@ -686,8 +698,8 @@ app.post('/verify-certificate-from-qr', async (req, res) => {
                                 studentName,
                                 courseName,
                                 issueDate,
-                                universityName,
-                                walletAddress,
+                                universityname,
+                                walletaddress,
                                 signature: signerName,
                                 grade: grade || 'N/A',
                                 ipfsCid: ipfsCid // Pass signature from metadata

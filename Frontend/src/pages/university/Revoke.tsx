@@ -79,9 +79,9 @@ const RevokeCertificate = () => {
         issueDate: jsonData.issueDate,
         grade: jsonData.grade,
         status: "active",
-        universityName: jsonData.universityName,
+        universityName: jsonData.universityname,
         studentEmail: "N/A", 
-        walletAddress: jsonData.walletAddress,
+        walletAddress: jsonData.walletaddress,
         publicKey: "N/A",
         signature: "N/A",
       });

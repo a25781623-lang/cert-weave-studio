@@ -46,10 +46,10 @@ const ViewCertificates = () => {
         const rawQrData = [
           data.ipfsCid,
           data.studentName,
-          data.universityName,
+          data.universityname,
           data.courseName,
           data.issueDate,
-          data.walletAddress,
+          data.walletaddress,
           data.publicKey,
           certificateId,
           data.grade

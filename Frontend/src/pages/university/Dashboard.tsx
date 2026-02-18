@@ -47,7 +47,7 @@ const UniversityDashboard = () => {
             const token = localStorage.getItem('universityAuthToken');
             if (token) {
                 try {
-                    const response = await axios.get(`import.meta.env.VITE_BACKEND_URL/get-university-details`, {
+                    const response = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/get-university-details`, {
                         headers: { 'Authorization': `Bearer ${token}` }
                     });
                     setUniversityDetails(response.data);
@@ -91,7 +91,7 @@ const UniversityDashboard = () => {
             setIssuanceStep('verifying');
             const verificationFormData = new FormData();
             verificationFormData.append('pdf', pdfFile);
-            await axios.post(`import.meta.env.VITE_BACKEND_URL/verify-signature`, verificationFormData, {
+            await axios.post(`${import.meta.env.VITE_BACKEND_URL}/verify-signature`, verificationFormData, {
                 headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
             });
             toast({ title: "Step 1/4: Signature Verified", description: "The certificate's digital signature is valid." });
@@ -99,14 +99,14 @@ const UniversityDashboard = () => {
             setIssuanceStep('uploading');
             const uploadFormData = new FormData();
             uploadFormData.append('pdf', pdfFile);
-            const uploadResponse = await axios.post(`import.meta.env.VITE_BACKEND_URL/upload-certificate`, uploadFormData, {
+            const uploadResponse = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/upload-certificate`, uploadFormData, {
                 headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
             });
             const { ipfsCid } = uploadResponse.data;
             toast({ title: "Step 2/4: Uploaded to IPFS", description: `File pinned with CID: ${ipfsCid.substring(0, 10)}...` });
 
             setIssuanceStep('hashing');
-            const hashResponse = await axios.post(`import.meta.env.VITE_BACKEND_URL/prepare-certificate-hash`, {
+            const hashResponse = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/prepare-certificate-hash`, {
                 ...formData,
                 ipfsCid,
             }, { headers: { 'Authorization': `Bearer ${token}` } });
@@ -126,6 +126,7 @@ const UniversityDashboard = () => {
             toast({ title: "Step 4/4: Transaction Sent", description: "Waiting for blockchain confirmation..." });
 
             const receipt = await tx.wait();
+            console.log(receipt)
 
             if (!receipt) {
                 throw new Error("Transaction failed: No receipt was returned.");
@@ -172,7 +173,7 @@ const UniversityDashboard = () => {
         try {
             toast({ title: "Sending Email...", description: "Please wait." });
 
-            await axios.post(`import.meta.env.VITE_BACKEND_URL/send-certificate-email`, {
+            await axios.post(`${import.meta.env.VITE_BACKEND_URL}/send-certificate-email`, {
                 studentEmail: formData.studentEmail,
                 studentName: formData.studentName,
                 certificateId: certificateId,

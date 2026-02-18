@@ -66,7 +66,7 @@ const CreateAccount = () => {
 
       // Step 2: Prepare the transaction by calling the backend
       const prepareResponse = await axios.post(
-        `import.meta.env.VITE_BACKEND_URL/prepare-registration`,
+        `${import.meta.env.VITE_BACKEND_URL}/prepare-registration`,
         { token, walletAddress }
       );
       const { unsignedTx } = prepareResponse.data;
@@ -84,7 +84,7 @@ const CreateAccount = () => {
       }
 
       // Step 4: Finalize the registration with the transaction hash
-      await axios.post(`import.meta.env.VITE_BACKEND_URL/finalize-registration`, {
+      await axios.post(`${import.meta.env.VITE_BACKEND_URL}/finalize-registration`, {
         token,
         password,
         txHash: receipt.hash,
