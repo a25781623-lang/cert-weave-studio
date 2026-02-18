@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { ethers } from "ethers";
 import UniversitySidebar from "@/components/UniversitySidebar";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ interface CertificateDataForEmail {
 }
 
 const UniversityDashboard = () => {
+    const navigate = useNavigate();
     const [formData, setFormData] = useState({
         studentName: "",
         studentEmail: "",
@@ -41,23 +43,46 @@ const UniversityDashboard = () => {
     const [universityDetails, setUniversityDetails] = useState({ name: '', publicKey: '' });
     const [certificateDataForEmail, setCertificateDataForEmail] = useState<CertificateDataForEmail | null>(null);
     const { toast } = useToast();
+    
 
-    useEffect(() => {
-        const fetchUniversityDetails = async () => {
-            const token = localStorage.getItem('universityAuthToken');
-            if (token) {
-                try {
-                    const response = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/get-university-details`, {
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
-                    setUniversityDetails(response.data);
-                } catch (error) {
-                    toast({ title: "Error fetching university data", description: "Could not retrieve your university's name and public key. Please try refreshing the page.", variant: "destructive" });
+useEffect(() => {
+    
+    const fetchUniversityDetails = async () => {
+        
+        
+        try {
+            // No need to manually get token from localStorage anymore
+            
+            const response = await axios.get(
+                `${import.meta.env.VITE_BACKEND_URL}/get-university-details`, 
+                { 
+                    // This is CRITICAL for sending HttpOnly cookies
+                    withCredentials: true 
                 }
+            );
+            setUniversityDetails(response.data);
+            } catch (error: unknown) { // TypeScript defaults this to unknown
+            let errorMessage = "An unexpected error occurred.";
+
+            // Narrowing the type safely
+            if (error instanceof Error) {
+                errorMessage = error.message;
+            } else if (typeof error === "string") {
+                errorMessage = error;
             }
+
+            console.error("Logout failed:", error);
+            toast({
+                title: "Logout Error",
+                description: errorMessage,
+                variant: "destructive",
+            });
+            
+            navigate("/university/login");
+        }
         };
-        fetchUniversityDetails();
-    }, []);
+    fetchUniversityDetails();
+}, []);
 
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {

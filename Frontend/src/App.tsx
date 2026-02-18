@@ -15,6 +15,7 @@ import ViewCertificates from "@/pages/university/Certificates";
 import RevokeCertificate from "@/pages/university/Revoke";
 import EmployerVerify from "@/pages/employer/Verify";
 import VerificationResult from "@/pages/employer/Result";
+import ProtectedRoute from "./pages/university/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
@@ -36,10 +37,11 @@ const App = () => (
           <Route path="/create-account/:token" element={<CreateAccount />} />
 
           {/* Authenticated University Routes */}
+          <Route element={<ProtectedRoute/>}>
           <Route path="/university/dashboard" element={<UniversityDashboard />} />
           <Route path="/university/certificates" element={<ViewCertificates />} />
           <Route path="/university/revoke" element={<RevokeCertificate />} />
-          
+          </Route>
           {/* Catch-all route for pages that don't exist */}
           <Route path="*" element={<NotFound />} />
         </Routes>

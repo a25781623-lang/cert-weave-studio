@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { toast } from "@/hooks/use-toast";
 import { GraduationCap, Shield } from "lucide-react";
 import axios from "axios"; // <-- Import axios
+axios.defaults.withCredentials = true;
 
 const UniversityLogin = () => {
   // We now use email instead of username for login
@@ -21,15 +22,10 @@ const UniversityLogin = () => {
 
     try {
       // Send login credentials to the backend
-      const response = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/login`, {
+       await axios.post(`${import.meta.env.VITE_BACKEND_URL}/login`, {
         email,
         password,
       });
-
-      // If login is successful, the backend sends back a token.
-      // We save this token in the browser's local storage.
-      // This is how the app "remembers" that the user is logged in.
-      localStorage.setItem("universityAuthToken", response.data.token);
 
       toast({
         title: "Login Successful",

@@ -2,6 +2,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { GraduationCap, FileText, List, XCircle, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
+import axios from 'axios';
 
 const UniversitySidebar = () => {
   const location = useLocation();
@@ -15,14 +16,27 @@ const UniversitySidebar = () => {
 
   const isActive = (path: string) => location.pathname === path;
 
-  const handleLogout = () => {
-    localStorage.removeItem("universityAuth");
-    toast({
-      title: "Logged Out",
-      description: "You have been successfully logged out",
-    });
-    navigate("/university/login");
-  };
+const handleLogout = async () => {
+    try {
+        // 1. Call backend to revoke JTI and clear cookie
+        await axios.post(`${import.meta.env.VITE_BACKEND_URL}/logout`, {}, { 
+            withCredentials: true 
+        });
+
+        toast({
+            title: "Logged Out",
+            description: "Session invalidated and cookie cleared.",
+        });
+
+        // 3. Redirect to login
+        navigate("/university/login");
+    } catch (error) {
+        console.error("Logout request failed:", error);
+        // Even if the network call fails, we usually redirect the user to login 
+        // to prevent them from staying on a private dashboard.
+        navigate("/university/login");
+    }
+};
 
   return (
     <aside className="group fixed left-0 top-0 w-16 hover:w-64 bg-card border-r border-border flex flex-col h-screen z-10 transition-all duration-300 ease-in-out">

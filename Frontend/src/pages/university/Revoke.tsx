@@ -5,11 +5,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
-import { AlertCircle, Search, XCircle } from "lucide-react";
+import { AlertCircle, Search, XCircle} from "lucide-react";
 import { Certificate } from "@/types/certificate";
 import { ethers } from "ethers";
 import CertiChainAbi from "@/abis/CertiChain.json";
 import { reconstructCertificateHash, CertificateData } from "@/lib/hash";
+import axios from 'axios';
+axios.defaults.withCredentials = true;
 
 // Get the contract address from the .env file
 const contractAddress = import.meta.env.VITE_CONTRACT_ADDRESS;
@@ -118,6 +120,19 @@ const RevokeCertificate = () => {
       
     setLoading(true);
     try {
+        
+        
+        // 1. Ask Backend for permission
+        await axios.post(
+            `${import.meta.env.VITE_BACKEND_URL}/prepare-revoke`, 
+            { certificateId },
+            {// This tells the browser to send the HttpOnly 'universityAuthToken' cookie
+                withCredentials: true}
+        );
+
+
+      //2. If Backend Succeed
+
       const provider = new ethers.BrowserProvider(window.ethereum);
       await provider.send("eth_requestAccounts", []);
       const signer = await provider.getSigner();

@@ -5,6 +5,7 @@ const  ethers  = require('ethers');
 const cors = require('cors');
 const nodemailer = require('nodemailer');
 const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser');
 const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const axios = require('axios');
@@ -13,11 +14,16 @@ const FormData = require('form-data');
 const { PinataSDK } = require('pinata-web3');
 const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
+const { v4: uuidv4 } = require('uuid');
 
 
 // Initialize Express app
 const app = express();
-app.use(cors());
+app.use(cookieParser());
+app.use(cors({
+        origin:process.env.FRONTEND_URL,
+        credentials:true
+}));
 app.use(express.json());
 
 // --- Migrated to Supabase (for production) ---
@@ -88,7 +94,8 @@ const contractABI = [
                 "inputs": [{ "internalType": "string", "name": "", "type": "string" }], "name": "certificates",
                 "outputs": [
                         { "internalType": "string", "name": "certificateHash", "type": "string" },
-                        { "internalType": "bool", "name": "isRevoked", "type": "bool" }
+                        { "internalType": "bool", "name": "isRevoked", "type": "bool" },
+                        { "indexed": true, "internalType": "address", "name": "universityAddress", "type": "address" }
                 ], "stateMutability": "view", "type": "function"
         },
         {
@@ -139,25 +146,34 @@ try {
 
 // --- JWT Authentication Middleware ---
 const authenticateToken = (req, res, next) => {
-        const authHeader = req.headers['authorization'];
-        const token = authHeader && authHeader.split(' ')[1];
-        if (token == null) return res.sendStatus(401);
-
+        const token = req.cookies.universityAuthToken;
+        if (!token) return res.sendStatus(401);
         jwt.verify(token, process.env.JWT_SECRET, async (err, decoded) => {
                 if (err) {
                         console.error("JWT Verification Error:", err.message);
                         return res.sendStatus(403);
                 }
-                const { data: user, error } = await supabase
-                        .from(`${process.env.SUPABASE_TABLE_NAME}`)
-                        .select('*')
-                        .eq('email', decoded.email.toLowerCase())
-                        .single();
-                if (error || !user) {
-                        return res.status(401).json({ message: "User no longer exists." });
+                try{
+                    // Fetch the user and their CURRENT active session ID from the database
+                        const { data: user, error } = await supabase
+                                .from(`${process.env.SUPABASE_TABLE_NAME}`)
+                                .select('*')
+                                .eq('email', decoded.email.toLowerCase())
+                                .single();
+                        if (error || !user) {
+                                return res.status(401).json({ message: "User no longer exists." });
+                                }
+                        if (user.active_session_id!=decoded.jti) {
+                                console.log(`Session Revoked for ${decoded.email}. Expected: ${user.active_session_id}, Got: ${decoded.jti}`);
+                        
+                                return res.status(401).json({ message: "Session expired or logged in elsewhere." });
                         }
-                req.user=user;
-                next();
+                        req.user=user;
+                        next();
+                }catch(dbError){
+                        console.error("Database error during auth:", dbError);
+                        res.sendStatus(500);
+                }
         });
 };
 
@@ -386,16 +402,27 @@ app.post('/login', async (req, res) => {
                 if (!isMatch) {
                         return res.status(401).json({ message: "Invalid email or password." });
                 }
+
+                const sessionId = uuidv4(); // Generate a unique session ID
+                const { error: updateError } = await supabase
+                .from(`${process.env.SUPABASE_TABLE_NAME}`)
+                .update({ active_session_id: sessionId })
+                .eq('email', user.email);
+
+                if (updateError) throw updateError;
                 const sessionToken = jwt.sign(
-                        {
-                                email: user.email,
-                                universityName: user.universityname,
-                                walletaddress: user.walletaddress
-                        },
-                        process.env.JWT_SECRET,
-                        { expiresIn: '1h' }
+                { email: user.email, universityName: user.universityname, walletaddress: user.walletaddress ,jti:sessionId },
+                process.env.JWT_SECRET,
+                { expiresIn: '1h' }
                 );
-                res.status(200).json({ message: "Login successful!", token: sessionToken });
+                res.cookie(
+                        'universityAuthToken',sessionToken,{
+                                httpOnly:true,  // Prevents JavaScript access (XSS protection)
+                                secure:true,    // Only sent over HTTPS
+                                sameSite:'strict',// Prevents CSRF
+                                maxAge:3600000// 1 hour
+                        });
+                res.status(200).json({ message: "Login successful!" });
         } catch (error) {
                 console.error('Error in /login:', error);
                 res.status(500).json({ message: 'An error occurred.' });
@@ -405,6 +432,7 @@ app.post('/login', async (req, res) => {
 // --- NEW ENDPOINT: Get University Details ---
 app.get('/get-university-details', authenticateToken, async (req, res) => {
         // The walletAddress is securely taken from the authenticated user's token
+        console.log("hello");
         const { walletaddress } = req.user;
         
         console.log(`\n--- [/get-university-details] Attempting to fetch details for ${walletaddress} ---`);
@@ -713,7 +741,78 @@ app.post('/verify-certificate-from-qr', async (req, res) => {
         }
 });
 
+// --- NEW ENDPOINT: Prepare Revocation ---
+app.post('/prepare-revoke', authenticateToken, async (req, res) => {
+    const { certificateId } = req.body;
+    const { walletaddress } = req.user; // From authenticateToken middleware
 
+    if (!certificateId) {
+        return res.status(400).json({ message: 'Certificate ID is required.' });
+    }
+
+    try {
+        // 1. Fetch certificate details from the blockchain
+        const onChainCertificate = await contract.certificates(certificateId);
+        console.log("Full On-Chain Data:", onChainCertificate);
+
+        // 2. Security Check: Check if certificate exists
+        if (onChainCertificate.universityAddress === "0x0000000000000000000000000000000000000000") {
+            return res.status(404).json({ message: "Certificate not found on blockchain." });
+        }
+
+        // 3. Security Check: Only the issuing university can revoke
+        // We compare the blockchain's universityAddress with the authenticated user's wallet
+        if (onChainCertificate.universityAddress.toLowerCase() !== walletaddress.toLowerCase()) {
+            return res.status(403).json({ 
+                message: "Unauthorized: You can only revoke certificates issued by your university." 
+            });
+        }
+
+        // 4. Check if already revoked
+        if (onChainCertificate.isRevoked) {
+            return res.status(400).json({ message: "Certificate is already revoked." });
+        }
+
+        // If all checks pass, tell the frontend it's safe to proceed with the transaction
+        res.status(200).json({ 
+            success: true, 
+            message: "Revocation authorized. Proceeding to wallet signature." 
+        });
+
+    } catch (error) {
+        console.error('Error in /prepare-revoke:', error);
+        res.status(500).json({ message: 'An error occurred during revocation verification.' });
+    }
+});
+
+
+//  --- Logout Endpoint (Hybrid Revocation) --- 
+app.post('/logout', authenticateToken, async (req, res) => {
+    try {
+        const userEmail = req.user.email;
+
+        // 1. STATEFUL REVOCATION: Wipe the JTI from the database
+        // This ensures that even if the cookie isn't deleted, the middleware will reject it.
+        const { error } = await supabase
+            .from(`${process.env.SUPABASE_TABLE_NAME}`)
+            .update({ active_session_id: null })
+            .eq('email', userEmail.toLowerCase());
+
+        if (error) throw error;
+
+        // 2. STATELESS REVOCATION: Clear the HttpOnly cookie
+        res.clearCookie('universityAuthToken', {
+            httpOnly: true,
+            secure: true,
+            sameSite: 'strict'
+        });
+
+        res.status(200).json({ message: "Logged out successfully" });
+    } catch (error) {
+        console.error('Logout error:', error);
+        res.status(500).json({ message: "Error during logout process" });
+    }
+});
 const PORT = `${process.env.PORT}`;
 app.listen(PORT, () => {
         console.log(`Backend server is running on ${process.env.Backend_URL}`);
