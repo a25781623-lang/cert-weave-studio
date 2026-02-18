@@ -15,6 +15,22 @@ const { PinataSDK } = require('pinata-web3');
 const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
+const rateLimit = require('express-rate-limit');
+const verifyLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 20, // Limit each IP to 20 verification requests per window
+    message: {
+        message: "Too many verification attempts from this IP, please try again after 15 minutes."
+    },
+    standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+    legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+});
+const generalLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 500, 
+    message: { message: "Overall request limit reached." }
+});
+app.use(generalLimiter);
 
 
 // Initialize Express app
@@ -178,7 +194,7 @@ const authenticateToken = (req, res, next) => {
 };
 
 // --- Registration Step 1: Send Email ---
-app.post('/register', async (req, res) => {
+app.post('/register',generalLimiter, async (req, res) => {
         console.log("\n--- [STEP 1] /register endpoint hit ---");
         const { universityName, email, publicKey, walletAddress } = req.body;
         if (!universityName || !email || !publicKey) {
@@ -330,7 +346,7 @@ app.post('/prepare-registration', async (req, res) => {
 });
 
 // Step 3: Finalize Registration
-app.post('/finalize-registration', async (req, res) => {
+app.post('/finalize-registration',generalLimiter, async (req, res) => {
         console.log("\n--- [STEP 3] /finalize-registration endpoint hit ---");
         const { token, password, txHash } = req.body;
         if (!token || !password || !txHash) {
@@ -385,7 +401,7 @@ app.post('/finalize-registration', async (req, res) => {
 });
 
 // --- Login Endpoint ---
-app.post('/login', async (req, res) => {
+app.post('/login',generalLimiter, async (req, res) => {
         const { email, password } = req.body;
         console.log("\n--- LOGIN ATTEMPT ---");
         try {
@@ -661,7 +677,7 @@ app.post('/send-certificate-email', authenticateToken, async (req, res) => {
 
 
 // --- NEW VERIFICATION ENDPOINT ---
-app.post('/verify-certificate-from-qr', async (req, res) => {
+app.post('/verify-certificate-from-qr', verifyLimiter,async (req, res) => {
         const { qrData } = req.body;
         if (!qrData) {
                 return res.status(400).json({ message: 'QR data is required.' });
