@@ -5,16 +5,16 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 // Import all the pages for your application
-import Index from "./pages/Index";
-import NotFound from "./pages/NotFound";
-import UniversityLogin from "./pages/university/Login";
-import UniversityRegister from "./pages/university/Register"; // The initial registration page
-import CreateAccount from "./pages/university/CreateAccount"; // The final password-setting page
-import UniversityDashboard from "./pages/university/Dashboard";
-import ViewCertificates from "./pages/university/Certificates";
-import RevokeCertificate from "./pages/university/Revoke";
-import EmployerVerify from "./pages/employer/Verify";
-import VerificationResult from "./pages/employer/Result";
+import Index from "@/pages/Index";
+import NotFound from "@/pages/NotFound";
+import UniversityLogin from "@/pages/university/Login";
+import UniversityRegister from "@/pages/university/Register"; // The initial registration page
+import CreateAccount from "@/pages/university/CreateAccount"; // The final password-setting page
+import UniversityDashboard from "@/pages/university/Dashboard";
+import ViewCertificates from "@/pages/university/Certificates";
+import RevokeCertificate from "@/pages/university/Revoke";
+import EmployerVerify from "@/pages/employer/Verify";
+import VerificationResult from "@/pages/employer/Result";
 
 const queryClient = new QueryClient();
 

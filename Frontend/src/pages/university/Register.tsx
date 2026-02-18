@@ -82,7 +82,7 @@ const UniversityRegister = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      await axios.post("http://localhost:3000/register", formData);
+      await axios.post(`import.meta.env.VITE_BACKEND_URL/register`, formData);
       setEmailSent(true);
       toast({
         title: "Verification Email Sent",

@@ -1,21 +1,16 @@
 // src/pages/employer/Verify.tsx (Updated)
 
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link} from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Shield, Search, GraduationCap } from "lucide-react"; 
-import { Link } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
-// Ethers is no longer needed here as the backend will handle verification
-// import { ethers } from 'ethers';
 
-// We still need the CertificateData type definition
 import { CertificateData } from "@/lib/hash"; 
-// The ABI is no longer needed on this page
-// import CertiChain from '@/abis/CertiChain.json';
+
 
 
 const EmployerVerify = () => {
@@ -79,7 +74,6 @@ const EmployerVerify = () => {
       });
       setIsLoading(false);
     }
-    // No need for a `finally` block as we navigate away on success
   };
 
   return (

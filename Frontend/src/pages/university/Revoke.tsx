@@ -8,7 +8,7 @@ import { toast } from "@/hooks/use-toast";
 import { AlertCircle, Search, XCircle } from "lucide-react";
 import { Certificate } from "@/types/certificate";
 import { ethers } from "ethers";
-import CertiChainAbi from "../../abis/CertiChain.json";
+import CertiChainAbi from "@/abis/CertiChain.json";
 import { reconstructCertificateHash, CertificateData } from "@/lib/hash";
 
 // Get the contract address from the .env file
@@ -53,7 +53,7 @@ const RevokeCertificate = () => {
       const jsonData: CertificateData = JSON.parse(fileContent);
       const reconstructedHash = reconstructCertificateHash(jsonData);
 
-      const provider = new ethers.BrowserProvider(window.ethereum);
+     const provider = new ethers.JsonRpcProvider(import.meta.env.VITE_RPC_URL);
       const contract = new ethers.Contract(contractAddress, CertiChainAbi, provider);
 
       const onChainCertificate = await contract.certificates(certificateId);
@@ -102,6 +102,15 @@ const RevokeCertificate = () => {
         toast({
             title: "Configuration Error",
             description: "The contract address is not configured in the application.",
+            variant: "destructive",
+        });
+        return;
+    }
+
+    if (!window.ethereum) {
+        toast({
+            title: "Wallet Error",
+            description: "MetaMask or another Web3 wallet is not installed.",
             variant: "destructive",
         });
         return;

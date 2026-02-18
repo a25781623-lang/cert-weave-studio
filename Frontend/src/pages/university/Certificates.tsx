@@ -1,5 +1,5 @@
 import { useState } from "react";
-import UniversitySidebar from "../../components/UniversitySidebar";
+import UniversitySidebar from "@/components/UniversitySidebar";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Upload, Loader2 } from "lucide-react";
@@ -56,7 +56,7 @@ const ViewCertificates = () => {
         ].join('|');
 
         // Call the backend endpoint to perform the verification
-        const response = await fetch('http://localhost:3000/verify-certificate-from-qr', {
+        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/verify-certificate-from-qr`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

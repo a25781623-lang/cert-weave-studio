@@ -8,7 +8,6 @@ import axios from "axios";
 import { Certificate } from "@/types/certificate";
 
 const VerificationResult = () => {
-  const { certificateId } = useParams();
   const location = useLocation();
 
   const [verificationStatus, setVerificationStatus] = useState<'pending' | 'valid' | 'invalid'>('pending');
@@ -25,7 +24,7 @@ const VerificationResult = () => {
         return;
       }
       try {
-        const response = await axios.post('http://localhost:3000/verify-certificate-from-qr', { qrData });
+        const response = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/verify-certificate-from-qr`, { qrData });
         if (response.data.valid) {
           setVerificationStatus('valid');
           setCertificateData(response.data.certificateData);

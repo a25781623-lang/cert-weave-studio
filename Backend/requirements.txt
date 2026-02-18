@@ -1,3 +1,5 @@
 Flask
 gunicorn
-pdf_handler
+cryptography 
+PyPDF2
+python-dotenv
