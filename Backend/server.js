@@ -262,7 +262,7 @@ app.post('/register', generalLimiter, async (req, res) => {
                                                 expiresAt: new Date(Date.now() + 3600000).toISOString()
                                         }
                                 }]);
-
+                        console.error("Supabase Insert Error:", JSON.stringify(error, null, 2)); // ADD THIS
                         if (error) return res.status(500).json({ message: "Database error during registration." });
                         console.log(`Token created and stored. Expiration: 1 hour.`);
 
