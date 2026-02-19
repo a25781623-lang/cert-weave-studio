@@ -456,7 +456,8 @@ app.post('/finalize-registration', generalLimiter, async (req, res) => {
                                 walletAddress: correctWalletAddress,
                                 hashedPassword: hashedPassword,
                                 pending_verification: null
-                        });
+                        })
+                        .eq('email',registrationData.email.toLowerCase());
 
 
                 if (error) {
