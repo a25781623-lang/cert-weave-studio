@@ -3,7 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const ethers = require('ethers');
 const cors = require('cors');
-const Brevo = require('@getbrevo/brevo');
+// Brevo email via plain REST API (axios) - SDK has CommonJS compatibility issues
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
 const bcrypt = require('bcryptjs');
@@ -181,33 +181,25 @@ const contractABI = [
 ];
 const contractAddress = process.env.CONTRACT_ADDRESS;
 
-// --- Nodemailer (Resend) ---
-const emailAPI = new Brevo.TransactionalEmailsApi();
-emailAPI.authentications.apiKey.apiKey = process.env.BREVO_API_KEY;
-async function sendVerificationEmail(toEmail, toName, verificationCode) {
-    const message = new Brevo.SendSmtpEmail();
-    
-    message.sender = {
-        name: 'CertiChain',
-        email: process.env.BREVO_SENDER_EMAIL // your verified email in Brevo
+// --- Brevo Email via REST API ---
+async function sendBrevoEmail({ toEmail, toName, subject, htmlContent, attachment = null }) {
+    const body = {
+        sender: { name: 'CertiChain', email: process.env.BREVO_SENDER_EMAIL },
+        to: [{ email: toEmail, name: toName }],
+        subject,
+        htmlContent,
     };
-    message.to = [{ email: toEmail, name: toName }];
-    message.subject = 'Verify Your University Registration – CertiChain';
-    message.htmlContent = `
-        <h2>Welcome to CertiChain</h2>
-        <p>Your verification code is: <strong>${verificationCode}</strong></p>
-        <p>This code expires in 10 minutes.</p>
-    `;
+    if (attachment) body.attachment = [attachment];
 
-    try {
-        const result = await emailAPI.sendTransacEmail(message);
-        console.log('Email sent:', result.body);
-        return true;
-    } catch (error) {
-        console.error('Email error:', error.response?.body || error);
-        return false;
-    }
+    const response = await axios.post('https://api.brevo.com/v3/smtp/email', body, {
+        headers: {
+            'api-key': process.env.BREVO_API_KEY,
+            'Content-Type': 'application/json',
+        }
+    });
+    return response.data;
 }
+
 
 // --- Blockchain Connection (Read-only provider) ---
 let contract;
@@ -351,13 +343,12 @@ app.post('/register', generalLimiter, async (req, res) => {
                                 </html>
                                 `;
 
-                        // Send verification email via Brevo REST API
-                        const registrationMail = new Brevo.SendSmtpEmail();
-                        registrationMail.sender = { name: 'CertiChain', email: process.env.BREVO_SENDER_EMAIL };
-                        registrationMail.to = [{ email: email, name: universityName }];
-                        registrationMail.subject = 'Verify Your University Registration – CertiChain';
-                        registrationMail.htmlContent = emailHtml;
-                        await emailAPI.sendTransacEmail(registrationMail);
+                        await sendBrevoEmail({
+                            toEmail: email,
+                            toName: universityName,
+                            subject: 'Verify Your University Registration – CertiChain',
+                            htmlContent: emailHtml,
+                        });
 
 
                         console.log("Verification email sent.");
@@ -782,20 +773,16 @@ app.post('/send-certificate-email', authenticateToken, async (req, res) => {
                 <p><strong>IMPORTANT:</strong> Please download and keep the attached JSON file (\`${certificateId}.json\`) in a safe place. You will need this file to verify your certificate.</p>
                 <p>Thank you,</p>
                 <p>The CertiChain Team</p>`
-                // Send certificate email via Brevo REST API (with JSON attachment)
-                const certMail = new Brevo.SendSmtpEmail();
-                certMail.sender = { name: 'CertiChain', email: process.env.BREVO_SENDER_EMAIL };
-                certMail.to = [{ email: studentEmail, name: studentName }];
-                certMail.subject = 'Your Digital Certificate Has Been Issued!';
-                certMail.htmlContent = emailHtml;
-                certMail.attachment = [
-                        {
-                                name: `${certificateId}.json`,
-                                content: Buffer.from(jsonContent, 'utf-8').toString('base64')
-                        }
-                ];
-
-                await emailAPI.sendTransacEmail(certMail);
+                await sendBrevoEmail({
+                    toEmail: studentEmail,
+                    toName: studentName,
+                    subject: 'Your Digital Certificate Has Been Issued!',
+                    htmlContent: emailHtml,
+                    attachment: {
+                        name: `${certificateId}.json`,
+                        content: Buffer.from(jsonContent, 'utf-8').toString('base64'),
+                    }
+                });
                 console.log(`Certificate email sent successfully to ${studentEmail} for ID ${certificateId}`);
                 res.status(200).json({ success: true, message: 'Certificate email sent successfully!' });
 
