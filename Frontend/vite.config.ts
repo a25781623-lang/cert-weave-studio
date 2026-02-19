@@ -11,7 +11,6 @@ export default defineConfig(({ mode }) => ({
     port: 8080,
   },
   plugins: [react()],
-  envDir: '../Backend',
   envPrefix: 'VITE_',
   // This alias section is now correctly in place.
   resolve: {

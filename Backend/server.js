@@ -3,7 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const ethers = require('ethers');
 const cors = require('cors');
-const { Resend } = require('resend');
+const nodemailer = require('nodemailer');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
 const bcrypt = require('bcryptjs');
@@ -177,7 +177,15 @@ const contractABI = [
 const contractAddress = process.env.CONTRACT_ADDRESS;
 
 // --- Nodemailer (Resend) ---
-const resend = new Resend(process.env.RESEND_API_KEY);
+const transporter = nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false,
+    auth: {
+        user: process.env.GMAIL_USER,      // your@gmail.com
+        pass: process.env.GMAIL_APP_PASSWORD  // 16-char app password (not your real password)
+    }
+});
 
 
 // --- Blockchain Connection (Read-only provider) ---
@@ -323,8 +331,8 @@ app.post('/register', generalLimiter, async (req, res) => {
                                 `;
 
                         // Update your sendMail call:
-                        await resend.emails.send({
-                        from: 'CertiChain <onboarding@resend.dev>', // use resend.dev domain until you add your own
+                        await transporter.sendMail({
+                        from: '"CertiChain Admin" <yourcertichain@gmail.com>', // use resend.dev domain until you add your own
                         to: email,
                         subject: 'Verify Your University Registration',
                         html: emailHtml,
@@ -753,9 +761,8 @@ app.post('/send-certificate-email', authenticateToken, async (req, res) => {
                 <p><strong>IMPORTANT:</strong> Please download and keep the attached JSON file (\`${certificateId}.json\`) in a safe place. You will need this file to verify your certificate.</p>
                 <p>Thank you,</p>
                 <p>The CertiChain Team</p>`
-
-                const mailOptions = {
-                        from: '"CertiChain Admin" <admin@resend.dev>',
+                await transporter.sendMail({
+                        from: '"CertiChain Admin" <yourcertichain@gmail.com>',  // ✅ display name is anything you want
                         to: studentEmail,
                         subject: 'Your Digital Certificate Has Been Issued!',
                         html: emailHtml,
@@ -766,7 +773,7 @@ app.post('/send-certificate-email', authenticateToken, async (req, res) => {
                                         contentType: 'application/json'
                                 }
                         ]
-                };
+                });
                 console.log('--- Preparing to send email with attachment: ---', mailOptions.attachments);
 
                 let info = await transporter.sendMail(mailOptions);
