@@ -28,7 +28,7 @@ const ViewCertificates = () => {
     setIsLoading(true);
 
     const verificationPromises = Array.from(files).map(async (file) => {
-      if (file.type !== "application/json") {
+      if (file.type !== "application/json" && file.type !== "text/plain") {
         toast({
           title: "Invalid File",
           description: `Skipping non-JSON file: ${file.name}`,
@@ -150,7 +150,7 @@ const ViewCertificates = () => {
                       <Input
                         id="file-upload"
                         type="file"
-                        accept=".json"
+                        accept=".json,.txt"
                         onChange={handleFileUpload}
                         className="hidden"
                         multiple

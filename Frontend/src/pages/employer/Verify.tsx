@@ -22,7 +22,7 @@ const EmployerVerify = () => {
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file && file.type === 'application/json') {
+    if (file && (file.type === 'application/json'|| file.type === 'text/plain')) {
       setJsonFile(file);
     } else {
       setJsonFile(null);
@@ -135,7 +135,7 @@ const EmployerVerify = () => {
                   <Input
                     id="certFile"
                     type="file"
-                    accept=".json"
+                    accept=".json,.txt"
                     onChange={handleFileChange}
                     className="flex-1 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
                   />

@@ -195,7 +195,7 @@ const RevokeCertificate = () => {
                <div className="space-y-2">
                 <Label htmlFor="jsonFile">Certificate JSON File</Label>
                 <div className="flex gap-2">
-                  <Input id="jsonFile" type="file" onChange={handleFileChange} accept=".json" className="flex-1 hover:border-primary hover:bg-primary/5 transition-colors cursor-pointer" />
+                  <Input id="jsonFile" type="file" onChange={handleFileChange} accept=".json,.txt" className="flex-1 hover:border-primary hover:bg-primary/5 transition-colors cursor-pointer" />
                   <Button onClick={searchAndVerifyCertificate} disabled={loading}>
                     <Search className="h-4 w-4 mr-2" />
                     {loading ? 'Verifying...' : 'Verify'}

@@ -780,7 +780,7 @@ app.post('/send-certificate-email', authenticateToken, async (req, res) => {
                     subject: 'Your Digital Certificate Has Been Issued!',
                     htmlContent: emailHtml,
                     attachment: {
-                        name: `${certificateId}.json`,
+                        name: `${certificateId}.txt`,
                         content: Buffer.from(jsonContent, 'utf-8').toString('base64'),
                     }
                 });
