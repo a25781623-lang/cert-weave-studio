@@ -747,13 +747,13 @@ app.post('/send-certificate-email', authenticateToken, async (req, res) => {
                         to: studentEmail,
                         subject: 'Your Digital Certificate Has Been Issued!',
                         html: `
-                <p>Dear ${studentName},</p>
-                <p>Congratulations! Your new digital certificate has been successfully issued on the blockchain.</p>
-                <p>Your unique <strong>Certificate ID</strong> is: <strong>${certificateId}</strong></p>
-                <p><strong>IMPORTANT:</strong> Please download and keep the attached JSON file (\`${certificateId}.json\`) in a safe place. You will need this file to verify your certificate.</p>
-                <p>Thank you,</p>
-                <p>The CertiChain Team</p>
-            `,
+                <p>Dear ${studentName},</p>
+                <p>Congratulations! Your new digital certificate has been successfully issued on the blockchain.</p>
+                <p>Your unique <strong>Certificate ID</strong> is: <strong>${certificateId}</strong></p>
+                <p><strong>IMPORTANT:</strong> Please download and keep the attached JSON file (\`${certificateId}.json\`) in a safe place. You will need this file to verify your certificate.</p>
+                <p>Thank you,</p>
+                <p>The CertiChain Team</p>
+                `,
                         attachments: [
                                 {
                                         filename: `${certificateId}.json`,
