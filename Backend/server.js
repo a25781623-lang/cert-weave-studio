@@ -266,7 +266,7 @@ app.post('/register', generalLimiter, async (req, res) => {
                         if (error) return res.status(500).json({ message: "Database error during registration." });
                         console.log(`Token created and stored. Expiration: 1 hour.`);
 
-
+                        try{
                         // Inside app.post('/register', ...)
                         const verificationLink = `${process.env.FRONTEND_URL}/create-account/${verificationToken}`;
 
@@ -342,7 +342,10 @@ app.post('/register', generalLimiter, async (req, res) => {
                         subject: 'Verify Your University Registration',
                         html: emailHtml,
                         });
-
+                }catch{emailError}{
+                        console.error("EMAIL ERROR:", emailError); // ← this will show exact email failure
+                        return res.status(500).json({ message: "Failed to send verification email." });
+                }
 
                         console.log("Verification email sent.");
                         res.status(200).json({ message: `Verification email sent.` });
