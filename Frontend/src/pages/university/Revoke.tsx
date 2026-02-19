@@ -241,6 +241,10 @@ const RevokeCertificate = () => {
                       <p className="text-sm text-muted-foreground">Status</p>
                       <p className="font-medium capitalize">{certificate.status}</p>
                     </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Digitally Signed </p>
+                      <p className="font-medium capitalize">{certificate.signature}</p>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

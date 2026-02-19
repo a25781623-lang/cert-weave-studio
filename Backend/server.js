@@ -3,14 +3,14 @@ require('dotenv').config();
 const express = require('express');
 const ethers = require('ethers');
 const cors = require('cors');
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
 const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const axios = require('axios');
 const fs = require('fs').promises;
-const { createReadStream } = require('fs');
+const { createReadStream} = require('fs');
 const FormData = require('form-data');
 const { PinataSDK } = require('pinata-web3');
 const { createClient } = require('@supabase/supabase-js');
@@ -64,8 +64,18 @@ const app = express();
 app.use(generalLimiter);
 app.use(cookieParser());
 app.use(cors({
-        origin: process.env.FRONTEND_URL,
-        credentials: true
+  origin: function(origin, callback) {
+    const allowed = [
+      process.env.FRONTEND_URL,
+      process.env.FRONTEND_URL_PROD  // add this env var for your Vercel URL
+    ].filter(Boolean);
+    if (!origin || allowed.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
 }));
 app.use(express.json());
 
@@ -74,7 +84,7 @@ const supabase = createClient(
         process.env.SUPABASE_URL,
         process.env.SUPABASE_SECRET_KEY
 );
-const verifiedFiles = {};
+
 
 // --- Multer Configuration for file uploads ---
 const upload = multer({ dest: 'uploads/' });
@@ -166,12 +176,8 @@ const contractABI = [
 ];
 const contractAddress = process.env.CONTRACT_ADDRESS;
 
-// --- Nodemailer (Ethereal) ---
-const transporter = nodemailer.createTransport({
-        host: 'smtp.ethereal.email',
-        port: 587,
-        auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
-});
+// --- Nodemailer (Resend) ---
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 
 // --- Blockchain Connection (Read-only provider) ---
@@ -317,11 +323,11 @@ app.post('/register', generalLimiter, async (req, res) => {
                                 `;
 
                         // Update your sendMail call:
-                        await transporter.sendMail({
-                                from: '"CertiChain Admin" <admin@certichain.com>',
-                                to: email,
-                                subject: 'Verify Your University Registration',
-                                html: emailHtml, // Use the new pretty HTML here
+                        await resend.emails.send({
+                        from: 'CertiChain <onboarding@resend.dev>', // use resend.dev domain until you add your own
+                        to: email,
+                        subject: 'Verify Your University Registration',
+                        html: emailHtml,
                         });
 
 
@@ -424,7 +430,7 @@ app.post('/finalize-registration', generalLimiter, async (req, res) => {
                 const hashedPassword = await bcrypt.hash(password, 10);
                 const { error } = await supabase
                         .from(`${process.env.SUPABASE_TABLE_NAME}`)
-                        .insert([{
+                        .update([{
                                 email: registrationData.email.toLowerCase(),
                                 universityName: registrationData.universityName,
                                 walletAddress: correctWalletAddress,
@@ -485,7 +491,7 @@ app.post('/login', generalLimiter, async (req, res) => {
                         'universityAuthToken', sessionToken, {
                         httpOnly: true,  // Prevents JavaScript access (XSS protection)
                         secure: true,    // Only sent over HTTPS
-                        sameSite: 'strict',// Prevents CSRF
+                        sameSite: 'none',// Prevents CSRF
                         maxAge: 3600000// 1 hour
                 });
                 res.status(200).json({ message: "Login successful!" });
@@ -547,19 +553,19 @@ app.post('/verify-signature', authenticateToken, upload.single('pdf'), async (re
                 const publicKey = university.publicKey;
                 if (!publicKey) throw new Error("Public key not found on-chain.");
 
-                fs.writeFileSync(publicKeyPath, publicKey);
+                await fs.writeFile(publicKeyPath, publicKey);
 
                 const formData = new FormData();
-                formData.append('pdf', fs.createReadStream(pdfPath));
-                formData.append('public_key', fs.createReadStream(publicKeyPath));
+                formData.append('pdf', createReadStream(pdfPath));
+                formData.append('public_key', createReadStream(publicKeyPath));
 
                 const response = await axios.post(`${process.env.Python_Api_Url}/verify-pdf`, formData, { headers: formData.getHeaders() });
 
-                fs.unlinkSync(publicKeyPath);
+                await fs.unlink(publicKeyPath);
 
                 if (response.data.valid) {
 
-                        const fileBuffer = fs.readFileSync(pdfPath);
+                        const fileBuffer = await fs.readFile(pdfPath);
                         const fileHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
                         verifiedFiles[fileHash] = {
                                 verifiedBy: walletAddress,
@@ -567,12 +573,12 @@ app.post('/verify-signature', authenticateToken, upload.single('pdf'), async (re
                         };
                         res.status(200).json({ message: 'PDF signature verified successfully.' });
                 } else {
-                        fs.unlinkSync(pdfPath);
+                        await fs.unlinkSync(pdfPath);
                         res.status(400).json({ message: 'Warning: The uploaded PDF is not signed by you.' });
                 }
         } catch (error) {
-                if (fs.existsSync(pdfPath)) fs.unlinkSync(pdfPath);
-                if (fs.existsSync(publicKeyPath)) fs.unlinkSync(publicKeyPath);
+                await fs.unlink(pdfPath).catch(() => {})
+                await fs.unlink(publicKeyPath).catch(() => {});
                 console.error('Error verifying PDF:', error.response ? error.response.data : error.message);
                 res.status(500).json({ message: 'An error occurred during PDF verification.' });
         }
@@ -591,19 +597,19 @@ app.post('/get-signature-details', verifyLimiter, authenticateToken, async (req,
                 const pdfResponse = await axios.get(`https://dweb.link/ipfs/${ipfsCid}`, {
                         responseType: 'arraybuffer'
                 });
-                fs.writeFileSync(pdfPath, pdfResponse.data);
+                await fs.writeFile(pdfPath, pdfResponse.data);
 
                 // 2. Fetch the university's public key from the blockchain
                 const university = await contract.universities(walletAddress);
                 if (!university.publicKey) {
                         throw new Error("University public key not found on-chain.");
                 }
-                fs.writeFileSync(publicKeyPath, university.publicKey);
+                await fs.writeFile(publicKeyPath, university.publicKey);
 
                 // 3. Handshake with the Python PDF Handler
                 const formData = new FormData();
-                formData.append('pdf', fs.createReadStream(pdfPath));
-                formData.append('public_key', fs.createReadStream(publicKeyPath));
+                formData.append('pdf', createReadStream(pdfPath));
+                formData.append('public_key', createReadStream(publicKeyPath));
 
                 const pythonResponse = await axios.post(`${process.env.Python_Api_Url}/verify-pdf`, formData, {
                         headers: formData.getHeaders()
@@ -623,8 +629,8 @@ app.post('/get-signature-details', verifyLimiter, authenticateToken, async (req,
                 res.status(500).json({ message: "Failed to retrieve digital signature details." });
         } finally {
                 // Essential cleanup to prevent disk bloat
-                if (fs.existsSync(pdfPath)) fs.unlinkSync(pdfPath);
-                if (fs.existsSync(publicKeyPath)) fs.unlinkSync(publicKeyPath);
+                await fs.unlink(pdfPath).catch(() => {});
+                await fs.unlink(publicKeyPath).catch(() => {});
         }
 });
 
@@ -637,7 +643,7 @@ app.post('/upload-certificate', authenticateToken, upload.single('pdf'), async (
         }
         const pdfPath = req.file.path;
         try {
-                const fileBuffer = fs.readFileSync(pdfPath);
+                const fileBuffer = await fs.readFile(pdfPath);
                 const currentFileHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
                 const verificationRecord = verifiedFiles[currentFileHash];
 
@@ -664,7 +670,7 @@ app.post('/upload-certificate', authenticateToken, upload.single('pdf'), async (
                 console.error('Error uploading to IPFS:', error);
                 res.status(500).json({ message: 'An error occurred during IPFS upload.' });
         } finally {
-                if (fs.existsSync(pdfPath)) fs.unlinkSync(pdfPath);
+                await fs.unlink(pdfPath).catch(() => {});
         }
 });
 
@@ -741,19 +747,18 @@ app.post('/send-certificate-email', authenticateToken, async (req, res) => {
         try {
                 // Convert the certificate data object into a formatted JSON string
                 const jsonContent = JSON.stringify(certificateData, null, 2);
-
-                const mailOptions = {
-                        from: '"CertiChain Admin" <admin@certichain.com>',
-                        to: studentEmail,
-                        subject: 'Your Digital Certificate Has Been Issued!',
-                        html: `
-                <p>Dear ${studentName},</p>
+                const emailHtml=`<p>Dear ${studentName},</p>
                 <p>Congratulations! Your new digital certificate has been successfully issued on the blockchain.</p>
                 <p>Your unique <strong>Certificate ID</strong> is: <strong>${certificateId}</strong></p>
                 <p><strong>IMPORTANT:</strong> Please download and keep the attached JSON file (\`${certificateId}.json\`) in a safe place. You will need this file to verify your certificate.</p>
                 <p>Thank you,</p>
-                <p>The CertiChain Team</p>
-                `,
+                <p>The CertiChain Team</p>`
+
+                const mailOptions = {
+                        from: '"CertiChain Admin" <admin@resend.dev>',
+                        to: studentEmail,
+                        subject: 'Your Digital Certificate Has Been Issued!',
+                        html: emailHtml,
                         attachments: [
                                 {
                                         filename: `${certificateId}.json`,
@@ -919,7 +924,7 @@ app.post('/logout', authenticateToken, async (req, res) => {
                 res.clearCookie('universityAuthToken', {
                         httpOnly: true,
                         secure: true,
-                        sameSite: 'strict'
+                        sameSite: 'none'
                 });
 
                 res.status(200).json({ message: "Logged out successfully" });
