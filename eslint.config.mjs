@@ -27,7 +27,6 @@ export default tseslint.config(
       globals: globals.browser,
     },
     rules: {
-  ...reactHooks.configs.recommended.rules,
   "@typescript-eslint/no-explicit-any": "warn",
   "@typescript-eslint/no-empty-object-type": "warn",
   // Updated Rule: Ignore variables starting with "_"
