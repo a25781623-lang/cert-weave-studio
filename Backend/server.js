@@ -31,7 +31,32 @@ const generalLimiter = rateLimit({
     max: 500, 
     message: { message: "Overall request limit reached." }
 });
+const validateEnv = () =>{
+        const requiredEnv = [
+        'JWT_SECRET', 
+        'SUPABASE_URL', 
+        'SUPABASE_SECRET_KEY',
+        'SUPABASE_TABLE_NAME',
+        'RPC_PROVIDER_URL',
+        'FRONTEND_URL',
+        'VITE_RPC_URL',
+        'VITE_CONTRACT_ADDRESS',
+        'CONTRACT_ADDRESS',
+        'PINATA_JWT',
+        'PINATA_GATEWAY'
 
+    ];
+    
+    const missing = requiredEnv.filter(key => !process.env[key]);
+    
+    if (missing.length > 0) {
+        console.error('❌ FATAL ERROR: Missing environment variables:', missing.join(', '));
+        process.exit(1); // Stop the server immediately
+    }
+    console.log('✅ Environment Variables Validated');
+}
+// Call this before anything else
+validateEnv();
 
 
 // Initialize Express app
