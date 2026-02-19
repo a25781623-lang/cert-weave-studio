@@ -187,9 +187,15 @@ const transporter = nodemailer.createTransport({
     port: 587,
     secure: false,
     auth: {
-        user: process.env.GMAIL_USER,      // your@gmail.com
-        pass: process.env.GMAIL_APP_PASSWORD  // 16-char app password (not your real password)
-    }
+        user: process.env.GMAIL_USER,
+        pass: process.env.GMAIL_APP_PASSWORD
+    },
+    tls: {
+        rejectUnauthorized: false  // prevents TLS handshake timeout on Render
+    },
+    connectionTimeout: 10000,  // 10 seconds
+    greetingTimeout: 10000,
+    socketTimeout: 10000
 });
 
 
@@ -218,7 +224,7 @@ const authenticateToken = (req, res, next) => {
                         const { data: user, error } = await supabase
                                 .from(`${process.env.SUPABASE_TABLE_NAME}`)
                                 .select('*')
-                                .eq('email', decoded.data.email.toLowerCase())
+                                .eq('email', decoded.email.toLowerCase())
                                 .single();
                         if (error || !user) {
                                 return res.status(401).json({ message: "User no longer exists." });
@@ -266,7 +272,7 @@ app.post('/register', generalLimiter, async (req, res) => {
                         if (error) return res.status(500).json({ message: "Database error during registration." });
                         console.log(`Token created and stored. Expiration: 1 hour.`);
 
-                        try{
+
                         // Inside app.post('/register', ...)
                         const verificationLink = `${process.env.FRONTEND_URL}/create-account/${verificationToken}`;
 
@@ -337,15 +343,12 @@ app.post('/register', generalLimiter, async (req, res) => {
 
                         // Update your sendMail call:
                         await transporter.sendMail({
-                        from: '"CertiChain Admin" <yourcertichain@gmail.com>', // use resend.dev domain until you add your own
+                        from: '"CertiChain Admin" <${process.env.GMAIL_USER}>', // use resend.dev domain until you add your own
                         to: email,
                         subject: 'Verify Your University Registration',
                         html: emailHtml,
                         });
-                }catch{emailError}{
-                        console.error("EMAIL ERROR:", emailError); // ← this will show exact email failure
-                        return res.status(500).json({ message: "Failed to send verification email." });
-                }
+
 
                         console.log("Verification email sent.");
                         res.status(200).json({ message: `Verification email sent.` });
@@ -446,13 +449,13 @@ app.post('/finalize-registration', generalLimiter, async (req, res) => {
                 const hashedPassword = await bcrypt.hash(password, 10);
                 const { error } = await supabase
                         .from(`${process.env.SUPABASE_TABLE_NAME}`)
-                        .update([{
+                        .update({
                                 email: registrationData.email.toLowerCase(),
                                 universityName: registrationData.universityName,
                                 walletAddress: correctWalletAddress,
                                 hashedPassword: hashedPassword,
                                 pending_verification: null
-                        }]);
+                        });
 
 
                 if (error) {
