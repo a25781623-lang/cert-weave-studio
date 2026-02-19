@@ -11,9 +11,13 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: '18'
+          # This caches your dependencies for faster subsequent runs
+          cache: 'npm'
           
-      - name: Install Dependencies
-        run: cd Backend && npm install
+      - name: Install Root Dependencies
+        # This installs eslint and @eslint/js from your root package.json
+        run: npm install 
         
       - name: Run Linting
-        run: cd Backend && npm run lint # Validates code quality
+        # This now has access to @eslint/js in the root node_modules
+        run: npx eslint .
