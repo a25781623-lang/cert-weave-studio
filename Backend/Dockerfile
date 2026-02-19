@@ -3,7 +3,7 @@ FROM node:18-alpine AS builder
 WORKDIR /app
 # Copy lockfiles first for better caching
 COPY package*.json ./
-RUN npm ci --production
+RUN npm ci --omit=dev
 COPY . .
 
 # Stage 2: Production
