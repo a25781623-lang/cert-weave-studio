@@ -4,7 +4,8 @@
   "description": "Backend for CertiChain application",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "lint": "eslint ."
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.96.0",
