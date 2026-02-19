@@ -73,7 +73,7 @@ const UniversityRegister = () => {
         title: "Wallet Connected",
         description: `Address: ${accounts[0]}`,
       });
-    } catch (error) {
+    } catch (_error) {
       toast({ title: "Failed to connect wallet", variant: "destructive" });
     }
   };
