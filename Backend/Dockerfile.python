@@ -1,21 +1,11 @@
-# Stage 1: Build/Development
-FROM node:18-alpine AS builder
+FROM python:3.9-slim
 WORKDIR /app
-COPY package*.json ./
-# Industry Standard: use 'npm ci' for predictable, clean installs in CI/CD
-RUN npm ci 
+# Install only necessary system libs
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libmagic1 \
+    && rm -rf /var/lib/apt/lists/*
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
-
-# Stage 2: Production
-FROM node:18-alpine
-WORKDIR /app
-# Only copy necessary files from the builder
-COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app ./
-
-ENV NODE_ENV=production
 EXPOSE 5000
-# Best Practice: Don't run as root for security
-USER node 
-CMD ["node", "server.js"]
+CMD ["gunicorn", "--workers", "4", "--bind", "0.0.0.0:5000", "app:app"]

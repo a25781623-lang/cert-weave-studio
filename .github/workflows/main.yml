@@ -6,21 +6,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+      - run: npm ci
+      - name: Lint Project
+        run: npx eslint .
 
-      - name: Install Root Dependencies
-        run: npm ci # Use 'ci' for consistent builds
-
-      - name: Run Global Lint
-        # This will now use the updated eslint.config.mjs 
-        # which handles both Backend and Frontend correctly
-        run: npx eslint . 
-
-  build-docker:
+  docker-check:
     needs: lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Build Node Backend
-        run: docker build -t cert-weave-backend ./Backend -f Backend/Dockerfile
-      - name: Build Python Service
-        run: docker build -t cert-weave-python ./Backend -f Backend/Dockerfile.python
+      - name: Verify Backend Build
+        run: docker build -t backend ./Backend -f Backend/Dockerfile
+      - name: Verify Python Build
+        run: docker build -t python-service ./Backend -f Backend/Dockerfile.python
