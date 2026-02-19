@@ -27,7 +27,11 @@ export default tseslint.config(
       globals: globals.browser,
     },
     rules: {
-      "@typescript-eslint/no-explicit-any": "warn",
-    },
+  ...reactHooks.configs.recommended.rules,
+  "@typescript-eslint/no-explicit-any": "warn",
+  "@typescript-eslint/no-empty-object-type": "warn",
+  // Updated Rule: Ignore variables starting with "_"
+  "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
+},
   },
 );

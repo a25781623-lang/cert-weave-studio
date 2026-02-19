@@ -1,7 +1,7 @@
 // Import necessary libraries
 require('dotenv').config();
 const express = require('express');
-const  ethers  = require('ethers');
+const ethers = require('ethers');
 const cors = require('cors');
 const nodemailer = require('nodemailer');
 const jwt = require('jsonwebtoken');
@@ -10,7 +10,7 @@ const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const axios = require('axios');
 const fs = require('fs').promises;
-const { createReadStream, existsSync } = require('fs'); 
+const { createReadStream } = require('fs');
 const FormData = require('form-data');
 const { PinataSDK } = require('pinata-web3');
 const { createClient } = require('@supabase/supabase-js');
@@ -18,42 +18,42 @@ const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const rateLimit = require('express-rate-limit');
 const verifyLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 20, // Limit each IP to 20 verification requests per window
-    message: {
-        message: "Too many verification attempts from this IP, please try again after 15 minutes."
-    },
-    standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-    legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+        windowMs: 15 * 60 * 1000, // 15 minutes
+        max: 20, // Limit each IP to 20 verification requests per window
+        message: {
+                message: "Too many verification attempts from this IP, please try again after 15 minutes."
+        },
+        standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+        legacyHeaders: false, // Disable the `X-RateLimit-*` headers
 });
 const generalLimiter = rateLimit({
-    windowMs: 60 * 60 * 1000, // 1 hour
-    max: 500, 
-    message: { message: "Overall request limit reached." }
+        windowMs: 60 * 60 * 1000, // 1 hour
+        max: 500,
+        message: { message: "Overall request limit reached." }
 });
-const validateEnv = () =>{
+const validateEnv = () => {
         const requiredEnv = [
-        'JWT_SECRET', 
-        'SUPABASE_URL', 
-        'SUPABASE_SECRET_KEY',
-        'SUPABASE_TABLE_NAME',
-        'RPC_PROVIDER_URL',
-        'FRONTEND_URL',
-        'VITE_RPC_URL',
-        'VITE_CONTRACT_ADDRESS',
-        'CONTRACT_ADDRESS',
-        'PINATA_JWT',
-        'PINATA_GATEWAY'
+                'JWT_SECRET',
+                'SUPABASE_URL',
+                'SUPABASE_SECRET_KEY',
+                'SUPABASE_TABLE_NAME',
+                'RPC_PROVIDER_URL',
+                'FRONTEND_URL',
+                'VITE_RPC_URL',
+                'VITE_CONTRACT_ADDRESS',
+                'CONTRACT_ADDRESS',
+                'PINATA_JWT',
+                'PINATA_GATEWAY'
 
-    ];
-    
-    const missing = requiredEnv.filter(key => !process.env[key]);
-    
-    if (missing.length > 0) {
-        console.error('❌ FATAL ERROR: Missing environment variables:', missing.join(', '));
-        process.exit(1); // Stop the server immediately
-    }
-    console.log('✅ Environment Variables Validated');
+        ];
+
+        const missing = requiredEnv.filter(key => !process.env[key]);
+
+        if (missing.length > 0) {
+                console.error('❌ FATAL ERROR: Missing environment variables:', missing.join(', '));
+                process.exit(1); // Stop the server immediately
+        }
+        console.log('✅ Environment Variables Validated');
 }
 // Call this before anything else
 validateEnv();
@@ -64,25 +64,25 @@ const app = express();
 app.use(generalLimiter);
 app.use(cookieParser());
 app.use(cors({
-        origin:process.env.FRONTEND_URL,
-        credentials:true
+        origin: process.env.FRONTEND_URL,
+        credentials: true
 }));
 app.use(express.json());
 
 // --- Migrated to Supabase (for production) ---
 const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SECRET_KEY
+        process.env.SUPABASE_URL,
+        process.env.SUPABASE_SECRET_KEY
 );
-const verifiedFiles={};
+const verifiedFiles = {};
 
 // --- Multer Configuration for file uploads ---
 const upload = multer({ dest: 'uploads/' });
 
 // --- Pinata Configuration ---
 const pinata = new PinataSDK({
-    pinataJwt: process.env.PINATA_JWT,       // Use the JWT from Pinata dashboard
-    pinataGateway: process.env.PINATA_GATEWAY // e.g., "magenta-short-goose-123.mypinata.cloud"
+        pinataJwt: process.env.PINATA_JWT,       // Use the JWT from Pinata dashboard
+        pinataGateway: process.env.PINATA_GATEWAY // e.g., "magenta-short-goose-123.mypinata.cloud"
 });
 
 //const pinata = new pinataSDK(process.env.PINATA_API_KEY, process.env.PINATA_SECRET_KEY);
@@ -194,8 +194,8 @@ const authenticateToken = (req, res, next) => {
                         console.error("JWT Verification Error:", err.message);
                         return res.sendStatus(403);
                 }
-                try{
-                    // Fetch the user and their CURRENT active session ID from the database
+                try {
+                        // Fetch the user and their CURRENT active session ID from the database
                         const { data: user, error } = await supabase
                                 .from(`${process.env.SUPABASE_TABLE_NAME}`)
                                 .select('*')
@@ -203,15 +203,15 @@ const authenticateToken = (req, res, next) => {
                                 .single();
                         if (error || !user) {
                                 return res.status(401).json({ message: "User no longer exists." });
-                                }
-                        if (user.active_session_id!=decoded.jti) {
+                        }
+                        if (user.active_session_id != decoded.jti) {
                                 console.log(`Session Revoked for ${decoded.email}. Expected: ${user.active_session_id}, Got: ${decoded.jti}`);
-                        
+
                                 return res.status(401).json({ message: "Session expired or logged in elsewhere." });
                         }
-                        req.user=user;
+                        req.user = user;
                         next();
-                }catch(dbError){
+                } catch (dbError) {
                         console.error("Database error during auth:", dbError);
                         res.sendStatus(500);
                 }
@@ -219,7 +219,7 @@ const authenticateToken = (req, res, next) => {
 };
 
 // --- Registration Step 1: Send Email ---
-app.post('/register',generalLimiter, async (req, res) => {
+app.post('/register', generalLimiter, async (req, res) => {
         console.log("\n--- [STEP 1] /register endpoint hit ---");
         const { universityName, email, publicKey, walletAddress } = req.body;
         if (!universityName || !email || !publicKey) {
@@ -236,12 +236,12 @@ app.post('/register',generalLimiter, async (req, res) => {
                         const { error } = await supabase
                                 .from(`${process.env.SUPABASE_TABLE_NAME}`)
                                 .insert([{
-                                email: email.toLowerCase(),
-                                pending_verification: {
-                                        token: verificationToken,
-                                        data: req.body, // Stores universityName, publicKey, etc.
-                                        expiresAt: new Date(Date.now() + 3600000).toISOString()
-                                }
+                                        email: email.toLowerCase(),
+                                        pending_verification: {
+                                                token: verificationToken,
+                                                data: req.body, // Stores universityName, publicKey, etc.
+                                                expiresAt: new Date(Date.now() + 3600000).toISOString()
+                                        }
                                 }]);
 
                         if (error) return res.status(500).json({ message: "Database error during registration." });
@@ -348,7 +348,7 @@ app.post('/prepare-registration', async (req, res) => {
         try {
                 console.log(`Verifying token at: ${new Date().toLocaleTimeString()}`);
                 const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        
+
                 // Find the record where the nested JSON token matches
                 const { data: user, error } = await supabase
                         .from(`${process.env.SUPABASE_TABLE_NAME}`)
@@ -357,19 +357,18 @@ app.post('/prepare-registration', async (req, res) => {
                         .single();
 
                 if (error || !user?.pending_verification || user.pending_verification.token !== token) {
-                return res.status(400).json({ message: "Invalid or expired verification link." });
+                        return res.status(400).json({ message: "Invalid or expired verification link." });
                 }
 
                 const registrationData = user.pending_verification.data;
-                
+
 
                 console.log("Token is valid.");
                 if (!registrationData) {
-                        console.log("ERROR: Token is valid, but no matching data found in pendingVerifications.");
+
                         return res.status(400).json({ message: 'This verification link is invalid or has already been used. Please register again.' });
                 }
-                console.log("Found pending registration data. Token is NOT deleted yet.");
-                console.log("Pending verifications object:", Object.keys(pendingVerifications));
+
 
                 const contractInterface = new ethers.Interface(contractABI);
                 const unsignedTx = {
@@ -386,7 +385,7 @@ app.post('/prepare-registration', async (req, res) => {
         } catch (error) {
                 if (error instanceof jwt.TokenExpiredError) {
                         console.log("ERROR: Token has expired!");
-                        if (pendingVerifications[token]) delete pendingVerifications[token];
+
                         return res.status(400).json({ message: 'Your verification link has expired. Please register again.' });
                 }
                 console.error('Error in /prepare-registration:', error);
@@ -395,7 +394,7 @@ app.post('/prepare-registration', async (req, res) => {
 });
 
 // Step 3: Finalize Registration
-app.post('/finalize-registration',generalLimiter, async (req, res) => {
+app.post('/finalize-registration', generalLimiter, async (req, res) => {
         console.log("\n--- [STEP 3] /finalize-registration endpoint hit ---");
         const { token, password, txHash } = req.body;
         if (!token || !password || !txHash) {
@@ -412,7 +411,7 @@ app.post('/finalize-registration',generalLimiter, async (req, res) => {
                         .single();
 
                 if (fetchError || !user?.pending_verification || user.pending_verification.token !== token) {
-                return res.status(400).json({ message: 'Invalid or expired verification link.' });
+                        return res.status(400).json({ message: 'Invalid or expired verification link.' });
                 }
 
                 const registrationData = user.pending_verification.data;
@@ -424,21 +423,21 @@ app.post('/finalize-registration',generalLimiter, async (req, res) => {
                 const correctWalletAddress = registrationData.walletAddress;
                 const hashedPassword = await bcrypt.hash(password, 10);
                 const { error } = await supabase
-                .from(`${process.env.SUPABASE_TABLE_NAME}`)
-                .insert([{
-                        email: registrationData.email.toLowerCase(),
-                        universityName: registrationData.universityName,
-                        walletAddress: correctWalletAddress,
-                        hashedPassword: hashedPassword,
-                        pending_verification: null
-                }]);
-                
+                        .from(`${process.env.SUPABASE_TABLE_NAME}`)
+                        .insert([{
+                                email: registrationData.email.toLowerCase(),
+                                universityName: registrationData.universityName,
+                                walletAddress: correctWalletAddress,
+                                hashedPassword: hashedPassword,
+                                pending_verification: null
+                        }]);
+
 
                 if (error) {
-                console.error("Supabase Insert Error:", error);
-                return res.status(500).json({ message: 'Error saving user to database.' });
+                        console.error("Supabase Insert Error:", error);
+                        return res.status(500).json({ message: 'Error saving user to database.' });
                 }
-                
+
 
                 res.status(201).json({ message: 'Account created successfully!' });
 
@@ -452,7 +451,7 @@ app.post('/finalize-registration',generalLimiter, async (req, res) => {
 });
 
 // --- Login Endpoint ---
-app.post('/login',generalLimiter, async (req, res) => {
+app.post('/login', generalLimiter, async (req, res) => {
         const { email, password } = req.body;
         console.log("\n--- LOGIN ATTEMPT ---");
         try {
@@ -472,23 +471,23 @@ app.post('/login',generalLimiter, async (req, res) => {
 
                 const sessionId = uuidv4(); // Generate a unique session ID
                 const { error: updateError } = await supabase
-                .from(`${process.env.SUPABASE_TABLE_NAME}`)
-                .update({ active_session_id: sessionId })
-                .eq('email', user.email);
+                        .from(`${process.env.SUPABASE_TABLE_NAME}`)
+                        .update({ active_session_id: sessionId })
+                        .eq('email', user.email);
 
                 if (updateError) throw updateError;
                 const sessionToken = jwt.sign(
-                { email: user.email, universityName: user.universityName, walletAddress: user.walletAddress ,jti:sessionId },
-                process.env.JWT_SECRET,
-                { expiresIn: '1h' }
+                        { email: user.email, universityName: user.universityName, walletAddress: user.walletAddress, jti: sessionId },
+                        process.env.JWT_SECRET,
+                        { expiresIn: '1h' }
                 );
                 res.cookie(
-                        'universityAuthToken',sessionToken,{
-                                httpOnly:true,  // Prevents JavaScript access (XSS protection)
-                                secure:true,    // Only sent over HTTPS
-                                sameSite:'strict',// Prevents CSRF
-                                maxAge:3600000// 1 hour
-                        });
+                        'universityAuthToken', sessionToken, {
+                        httpOnly: true,  // Prevents JavaScript access (XSS protection)
+                        secure: true,    // Only sent over HTTPS
+                        sameSite: 'strict',// Prevents CSRF
+                        maxAge: 3600000// 1 hour
+                });
                 res.status(200).json({ message: "Login successful!" });
         } catch (error) {
                 console.error('Error in /login:', error);
@@ -500,7 +499,7 @@ app.post('/login',generalLimiter, async (req, res) => {
 app.get('/get-university-details', authenticateToken, async (req, res) => {
         // The walletAddress is securely taken from the authenticated user's token
         const { walletAddress } = req.user;
-        
+
         console.log(`\n--- [/get-university-details] Attempting to fetch details for ${walletAddress} ---`);
 
         try {
@@ -513,10 +512,10 @@ app.get('/get-university-details', authenticateToken, async (req, res) => {
 
                 // Query the smart contract directly using the user's wallet address
                 const university = await contract.universities(walletAddress);
-                
+
                 if (!university.isRegistered) {
                         return res.status(404).json({ message: "University not found or not registered." });
-                }else{
+                } else {
                         console.log("Successfully received data from the contract.");
 
                 }
@@ -559,13 +558,13 @@ app.post('/verify-signature', authenticateToken, upload.single('pdf'), async (re
                 fs.unlinkSync(publicKeyPath);
 
                 if (response.data.valid) {
-                        
+
                         const fileBuffer = fs.readFileSync(pdfPath);
                         const fileHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
                         verifiedFiles[fileHash] = {
-                                        verifiedBy: walletAddress,
-                                        timestamp: Date.now()
-                                };
+                                verifiedBy: walletAddress,
+                                timestamp: Date.now()
+                        };
                         res.status(200).json({ message: 'PDF signature verified successfully.' });
                 } else {
                         fs.unlinkSync(pdfPath);
@@ -579,60 +578,60 @@ app.post('/verify-signature', authenticateToken, upload.single('pdf'), async (re
         }
 });
 
-app.post('/get-signature-details',verifyLimiter, authenticateToken, async (req, res) => {
-    const { ipfsCid } = req.body;
-    const { walletAddress } = req.user; // Securely from JTI session
-    
-    // Create unique temp paths to prevent collisions
-    const pdfPath = `./temp_revoke_${Date.now()}.pdf`;
-    const publicKeyPath = `./temp_revoke_pub_${Date.now()}.pem`;
+app.post('/get-signature-details', verifyLimiter, authenticateToken, async (req, res) => {
+        const { ipfsCid } = req.body;
+        const { walletAddress } = req.user; // Securely from JTI session
 
-    try {
-        // 1. Download the PDF from IPFS using the CID
-        const pdfResponse = await axios.get(`https://dweb.link/ipfs/${ipfsCid}`, { 
-            responseType: 'arraybuffer' 
-        });
-        fs.writeFileSync(pdfPath, pdfResponse.data);
+        // Create unique temp paths to prevent collisions
+        const pdfPath = `./temp_revoke_${Date.now()}.pdf`;
+        const publicKeyPath = `./temp_revoke_pub_${Date.now()}.pem`;
 
-        // 2. Fetch the university's public key from the blockchain
-        const university = await contract.universities(walletAddress);
-        if (!university.publicKey) {
-            throw new Error("University public key not found on-chain.");
+        try {
+                // 1. Download the PDF from IPFS using the CID
+                const pdfResponse = await axios.get(`https://dweb.link/ipfs/${ipfsCid}`, {
+                        responseType: 'arraybuffer'
+                });
+                fs.writeFileSync(pdfPath, pdfResponse.data);
+
+                // 2. Fetch the university's public key from the blockchain
+                const university = await contract.universities(walletAddress);
+                if (!university.publicKey) {
+                        throw new Error("University public key not found on-chain.");
+                }
+                fs.writeFileSync(publicKeyPath, university.publicKey);
+
+                // 3. Handshake with the Python PDF Handler
+                const formData = new FormData();
+                formData.append('pdf', fs.createReadStream(pdfPath));
+                formData.append('public_key', fs.createReadStream(publicKeyPath));
+
+                const pythonResponse = await axios.post(`${process.env.Python_Api_Url}/verify-pdf`, formData, {
+                        headers: formData.getHeaders()
+                });
+
+                // 4. Return the signature metadata
+                if (pythonResponse.data.valid) {
+                        res.status(200).json({
+                                signer: pythonResponse.data.signer,
+                                timestamp: pythonResponse.data.timestamp
+                        });
+                } else {
+                        res.status(400).json({ message: "Digital signature verification failed for this PDF." });
+                }
+        } catch (error) {
+                console.error('Signature fetch error:', error);
+                res.status(500).json({ message: "Failed to retrieve digital signature details." });
+        } finally {
+                // Essential cleanup to prevent disk bloat
+                if (fs.existsSync(pdfPath)) fs.unlinkSync(pdfPath);
+                if (fs.existsSync(publicKeyPath)) fs.unlinkSync(publicKeyPath);
         }
-        fs.writeFileSync(publicKeyPath, university.publicKey);
-
-        // 3. Handshake with the Python PDF Handler
-        const formData = new FormData();
-        formData.append('pdf', fs.createReadStream(pdfPath));
-        formData.append('public_key', fs.createReadStream(publicKeyPath));
-
-        const pythonResponse = await axios.post(`${process.env.Python_Api_Url}/verify-pdf`, formData, { 
-            headers: formData.getHeaders() 
-        });
-
-        // 4. Return the signature metadata
-        if (pythonResponse.data.valid) {
-            res.status(200).json({ 
-                signer: pythonResponse.data.signer, 
-                timestamp: pythonResponse.data.timestamp 
-            });
-        } else {
-            res.status(400).json({ message: "Digital signature verification failed for this PDF." });
-        }
-    } catch (error) {
-        console.error('Signature fetch error:', error);
-        res.status(500).json({ message: "Failed to retrieve digital signature details." });
-    } finally {
-        // Essential cleanup to prevent disk bloat
-        if (fs.existsSync(pdfPath)) fs.unlinkSync(pdfPath);
-        if (fs.existsSync(publicKeyPath)) fs.unlinkSync(publicKeyPath);
-    }
 });
 
 
 // --- Upload Certificate to IPFS Endpoint ---
 app.post('/upload-certificate', authenticateToken, upload.single('pdf'), async (req, res) => {
-        const { walletAddress} = req.user;
+        const { walletAddress } = req.user;
         if (!req.file) {
                 return res.status(400).json({ message: 'No PDF file uploaded.' });
         }
@@ -641,10 +640,10 @@ app.post('/upload-certificate', authenticateToken, upload.single('pdf'), async (
                 const fileBuffer = fs.readFileSync(pdfPath);
                 const currentFileHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
                 const verificationRecord = verifiedFiles[currentFileHash];
-                
+
                 if (!verificationRecord || verificationRecord.verifiedBy !== walletAddress) {
-                        return res.status(403).json({ 
-                                message: 'Security Violation: This file has not been verified or does not belong to you.' 
+                        return res.status(403).json({
+                                message: 'Security Violation: This file has not been verified or does not belong to you.'
                         });
                 }
 
@@ -779,155 +778,155 @@ app.post('/send-certificate-email', authenticateToken, async (req, res) => {
 
 // --- NEW VERIFICATION ENDPOINT ---
 app.post('/verify-certificate-from-qr', verifyLimiter, async (req, res) => {
-    const { qrData } = req.body;
-    if (!qrData) {
-        return res.status(400).json({ message: 'QR data is required.' });
-    }
-
-    // 1. Declare paths OUTSIDE try/catch for scoping
-    let pdfPath = '';
-    let publicKeyPath = '';
-
-    try {
-        const [ipfsCid, studentName, universityName, courseName, issueDate, walletAddress, publicKey, certificateId, grade] = qrData.split('|');
-        
-        if (!ipfsCid || !studentName || !universityName || !courseName || !issueDate || !walletAddress || !publicKey || !certificateId) {
-            return res.status(400).json({ message: 'Malformed QR data.' });
+        const { qrData } = req.body;
+        if (!qrData) {
+                return res.status(400).json({ message: 'QR data is required.' });
         }
 
-        // Initialize paths now that we have certificateId
-        pdfPath = `./temp_verify_${certificateId}_${Date.now()}.pdf`; // Added timestamp for safety
-        publicKeyPath = `./temp_pubkey_${certificateId}_${Date.now()}.pem`;
+        // 1. Declare paths OUTSIDE try/catch for scoping
+        let pdfPath = '';
+        let publicKeyPath = '';
 
-        // 2. Hash reconstruction & On-chain check
-        const stringToHash = `${ipfsCid}${studentName}${universityName}${courseName}${issueDate}${walletAddress}${publicKey}${grade || ''}`;
-        const reconstructedHash = `0x${crypto.createHash('sha256').update(stringToHash).digest('hex')}`;
+        try {
+                const [ipfsCid, studentName, universityName, courseName, issueDate, walletAddress, publicKey, certificateId, grade] = qrData.split('|');
 
-        const onChainCertificate = await contract.certificates(certificateId);
-        if (onChainCertificate.certificateHash !== reconstructedHash) {
-            return res.status(400).json({ valid: false, message: 'Hash mismatch.' });
+                if (!ipfsCid || !studentName || !universityName || !courseName || !issueDate || !walletAddress || !publicKey || !certificateId) {
+                        return res.status(400).json({ message: 'Malformed QR data.' });
+                }
+
+                // Initialize paths now that we have certificateId
+                pdfPath = `./temp_verify_${certificateId}_${Date.now()}.pdf`; // Added timestamp for safety
+                publicKeyPath = `./temp_pubkey_${certificateId}_${Date.now()}.pem`;
+
+                // 2. Hash reconstruction & On-chain check
+                const stringToHash = `${ipfsCid}${studentName}${universityName}${courseName}${issueDate}${walletAddress}${publicKey}${grade || ''}`;
+                const reconstructedHash = `0x${crypto.createHash('sha256').update(stringToHash).digest('hex')}`;
+
+                const onChainCertificate = await contract.certificates(certificateId);
+                if (onChainCertificate.certificateHash !== reconstructedHash) {
+                        return res.status(400).json({ valid: false, message: 'Hash mismatch.' });
+                }
+                if (onChainCertificate.isRevoked) {
+                        return res.status(400).json({ valid: false, message: 'Certificate has been revoked.' });
+                }
+
+                // 3. ASYNC I/O: Download and write
+                const pdfResponse = await axios.get(`https://dweb.link/ipfs/${ipfsCid}`, { responseType: 'arraybuffer' });
+                await fs.writeFile(pdfPath, pdfResponse.data);
+                await fs.writeFile(publicKeyPath, publicKey);
+
+                // 4. Handshake with Python
+                const formData = new FormData();
+                formData.append('pdf', createReadStream(pdfPath));
+                formData.append('public_key', createReadStream(publicKeyPath));
+
+                const pythonResponse = await axios.post(`${process.env.Python_Api_Url}/verify-pdf`, formData, {
+                        headers: formData.getHeaders()
+                });
+
+                if (!pythonResponse.data.valid) {
+                        return res.status(400).json({ valid: false, message: 'PDF signature verification failed.' });
+                }
+
+                const signerName = pythonResponse.data.signer || 'ERR_NO_SIGNATURE';
+
+                res.status(200).json({
+                        valid: true,
+                        message: 'Certificate verified successfully.',
+                        certificateData: {
+                                id: certificateId,
+                                studentName,
+                                courseName,
+                                issueDate,
+                                universityName,
+                                walletAddress,
+                                signature: signerName,
+                                grade: grade || 'N/A',
+                                ipfsCid: ipfsCid
+                        }
+                });
+
+        } catch (error) {
+                console.error('Error:', error.message);
+                res.status(500).json({ message: 'An error occurred during verification.' });
+        } finally {
+                // 5. CLEANUP: This now works because variables are scoped correctly
+                if (pdfPath) await fs.unlink(pdfPath).catch(() => { });
+                if (publicKeyPath) await fs.unlink(publicKeyPath).catch(() => { });
         }
-        if (onChainCertificate.isRevoked) {
-            return res.status(400).json({ valid: false, message: 'Certificate has been revoked.' });
-        }
-
-        // 3. ASYNC I/O: Download and write
-        const pdfResponse = await axios.get(`https://dweb.link/ipfs/${ipfsCid}`, { responseType: 'arraybuffer' });
-        await fs.writeFile(pdfPath, pdfResponse.data);
-        await fs.writeFile(publicKeyPath, publicKey);
-
-        // 4. Handshake with Python
-        const formData = new FormData();
-        formData.append('pdf', createReadStream(pdfPath));
-        formData.append('public_key', createReadStream(publicKeyPath));
-
-        const pythonResponse = await axios.post(`${process.env.Python_Api_Url}/verify-pdf`, formData, { 
-            headers: formData.getHeaders() 
-        });
-
-        if (!pythonResponse.data.valid) {
-            return res.status(400).json({ valid: false, message: 'PDF signature verification failed.' });
-        }
-
-        const signerName = pythonResponse.data.signer || 'ERR_NO_SIGNATURE';
-
-        res.status(200).json({
-            valid: true,
-            message: 'Certificate verified successfully.',
-            certificateData: {
-                id: certificateId,
-                studentName,
-                courseName,
-                issueDate,
-                universityName,
-                walletAddress,
-                signature: signerName,
-                grade: grade || 'N/A',
-                ipfsCid: ipfsCid
-            }
-        });
-
-    } catch (error) {
-        console.error('Error:', error.message);
-        res.status(500).json({ message: 'An error occurred during verification.' });
-    } finally {
-        // 5. CLEANUP: This now works because variables are scoped correctly
-        if (pdfPath) await fs.unlink(pdfPath).catch(() => {});
-        if (publicKeyPath) await fs.unlink(publicKeyPath).catch(() => {});
-    }
 });
 
 // --- NEW ENDPOINT: Prepare Revocation ---
 app.post('/prepare-revoke', authenticateToken, async (req, res) => {
-    const { certificateId } = req.body;
-    const { walletAddress } = req.user; // From authenticateToken middleware
+        const { certificateId } = req.body;
+        const { walletAddress } = req.user; // From authenticateToken middleware
 
-    if (!certificateId) {
-        return res.status(400).json({ message: 'Certificate ID is required.' });
-    }
-
-    try {
-        // 1. Fetch certificate details from the blockchain
-        const onChainCertificate = await contract.certificates(certificateId);
-        console.log("Full On-Chain Data:", onChainCertificate);
-
-        // 2. Security Check: Check if certificate exists
-        if (onChainCertificate.universityAddress === "0x0000000000000000000000000000000000000000") {
-            return res.status(404).json({ message: "Certificate not found on blockchain." });
+        if (!certificateId) {
+                return res.status(400).json({ message: 'Certificate ID is required.' });
         }
 
-        // 3. Security Check: Only the issuing university can revoke
-        // We compare the blockchain's universityAddress with the authenticated user's wallet
-        if (onChainCertificate.universityAddress.toLowerCase() !== walletAddress.toLowerCase()) {
-            return res.status(403).json({ 
-                message: "Unauthorized: You can only revoke certificates issued by your university." 
-            });
+        try {
+                // 1. Fetch certificate details from the blockchain
+                const onChainCertificate = await contract.certificates(certificateId);
+                console.log("Full On-Chain Data:", onChainCertificate);
+
+                // 2. Security Check: Check if certificate exists
+                if (onChainCertificate.universityAddress === "0x0000000000000000000000000000000000000000") {
+                        return res.status(404).json({ message: "Certificate not found on blockchain." });
+                }
+
+                // 3. Security Check: Only the issuing university can revoke
+                // We compare the blockchain's universityAddress with the authenticated user's wallet
+                if (onChainCertificate.universityAddress.toLowerCase() !== walletAddress.toLowerCase()) {
+                        return res.status(403).json({
+                                message: "Unauthorized: You can only revoke certificates issued by your university."
+                        });
+                }
+
+                // 4. Check if already revoked
+                if (onChainCertificate.isRevoked) {
+                        return res.status(400).json({ message: "Certificate is already revoked." });
+                }
+
+                // If all checks pass, tell the frontend it's safe to proceed with the transaction
+                res.status(200).json({
+                        success: true,
+                        message: "Revocation authorized. Proceeding to wallet signature."
+                });
+
+        } catch (error) {
+                console.error('Error in /prepare-revoke:', error);
+                res.status(500).json({ message: 'An error occurred during revocation verification.' });
         }
-
-        // 4. Check if already revoked
-        if (onChainCertificate.isRevoked) {
-            return res.status(400).json({ message: "Certificate is already revoked." });
-        }
-
-        // If all checks pass, tell the frontend it's safe to proceed with the transaction
-        res.status(200).json({ 
-            success: true, 
-            message: "Revocation authorized. Proceeding to wallet signature." 
-        });
-
-    } catch (error) {
-        console.error('Error in /prepare-revoke:', error);
-        res.status(500).json({ message: 'An error occurred during revocation verification.' });
-    }
 });
 
 
 //  --- Logout Endpoint (Hybrid Revocation) --- 
 app.post('/logout', authenticateToken, async (req, res) => {
-    try {
-        const userEmail = req.user.email;
+        try {
+                const userEmail = req.user.email;
 
-        // 1. STATEFUL REVOCATION: Wipe the JTI from the database
-        // This ensures that even if the cookie isn't deleted, the middleware will reject it.
-        const { error } = await supabase
-            .from(`${process.env.SUPABASE_TABLE_NAME}`)
-            .update({ active_session_id: null })
-            .eq('email', userEmail.toLowerCase());
+                // 1. STATEFUL REVOCATION: Wipe the JTI from the database
+                // This ensures that even if the cookie isn't deleted, the middleware will reject it.
+                const { error } = await supabase
+                        .from(`${process.env.SUPABASE_TABLE_NAME}`)
+                        .update({ active_session_id: null })
+                        .eq('email', userEmail.toLowerCase());
 
-        if (error) throw error;
+                if (error) throw error;
 
-        // 2. STATELESS REVOCATION: Clear the HttpOnly cookie
-        res.clearCookie('universityAuthToken', {
-            httpOnly: true,
-            secure: true,
-            sameSite: 'strict'
-        });
+                // 2. STATELESS REVOCATION: Clear the HttpOnly cookie
+                res.clearCookie('universityAuthToken', {
+                        httpOnly: true,
+                        secure: true,
+                        sameSite: 'strict'
+                });
 
-        res.status(200).json({ message: "Logged out successfully" });
-    } catch (error) {
-        console.error('Logout error:', error);
-        res.status(500).json({ message: "Error during logout process" });
-    }
+                res.status(200).json({ message: "Logged out successfully" });
+        } catch (error) {
+                console.error('Logout error:', error);
+                res.status(500).json({ message: "Error during logout process" });
+        }
 });
 const PORT = `${process.env.PORT}`;
 app.listen(PORT, () => {
