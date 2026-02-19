@@ -90,7 +90,7 @@ const supabase = createClient(
         process.env.SUPABASE_SECRET_KEY
 );
 
-
+const verifiedFiles={};
 // --- Multer Configuration for file uploads ---
 const upload = multer({ dest: 'uploads/' });
 
