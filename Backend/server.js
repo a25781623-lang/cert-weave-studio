@@ -64,18 +64,23 @@ const app = express();
 app.use(generalLimiter);
 app.use(cookieParser());
 app.use(cors({
-  origin: function(origin, callback) {
-    const allowed = [
-      process.env.FRONTEND_URL,
-      process.env.FRONTEND_URL_PROD  // add this env var for your Vercel URL
-    ].filter(Boolean);
-    if (!origin || allowed.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true
+    origin: function(origin, callback) {
+        const allowed = [
+            process.env.FRONTEND_URL,
+            process.env.FRONTEND_URL_PROD,
+            'http://localhost:8080',  // local dev
+            'http://localhost:5173',  // vite default
+        ].filter(Boolean);
+
+        // Allow requests with no origin (Postman, curl, server-to-server)
+        if (!origin || allowed.includes(origin)) {
+            callback(null, true);
+        } else {
+            console.log('CORS blocked origin:', origin);  // helps debug
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true
 }));
 app.use(express.json());
 
