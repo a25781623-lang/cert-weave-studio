@@ -67,16 +67,16 @@ app.use(cors({
     origin: function(origin, callback) {
         const allowed = [
             process.env.FRONTEND_URL,
-            process.env.FRONTEND_URL_PROD,
-            'http://localhost:8080',  // local dev
-            'http://localhost:5173',  // vite default
+            'http://localhost:8080',
+            'http://localhost:5173',
         ].filter(Boolean);
 
-        // Allow requests with no origin (Postman, curl, server-to-server)
-        if (!origin || allowed.includes(origin)) {
+        const isVercelPreview = origin && origin.endsWith('.vercel.app');
+
+        if (!origin || allowed.includes(origin) || isVercelPreview) {
             callback(null, true);
         } else {
-            console.log('CORS blocked origin:', origin);  // helps debug
+            console.log('CORS blocked origin:', origin);
             callback(new Error('Not allowed by CORS'));
         }
     },
