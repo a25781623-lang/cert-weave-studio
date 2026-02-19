@@ -61,6 +61,7 @@ validateEnv();
 
 // Initialize Express app
 const app = express();
+app.set('trust proxy', 1); 
 app.use(generalLimiter);
 app.use(cookieParser());
 app.use(cors({

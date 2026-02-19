@@ -180,7 +180,7 @@ const ViewCertificates = () => {
                     <Input
                         id="file-upload-more"
                         type="file"
-                        accept=".json"
+                        accept=".json,.txt"
                         onChange={handleFileUpload}
                         className="hidden"
                         multiple
