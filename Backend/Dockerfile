@@ -1,17 +1,21 @@
-# Use Node.js LTS
-FROM node:18-alpine
-
+# Stage 1: Build/Development
+FROM node:18-alpine AS builder
 WORKDIR /app
-
-# Copy package files
 COPY package*.json ./
-RUN npm install --production
-
-# Copy source code
+# Industry Standard: use 'npm ci' for predictable, clean installs in CI/CD
+RUN npm ci 
 COPY . .
 
-# Expose the port your server.js uses
-EXPOSE 5000
+# Stage 2: Production
+FROM node:18-alpine
+WORKDIR /app
+# Only copy necessary files from the builder
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app ./
 
-# The startup command
+ENV NODE_ENV=production
+EXPOSE 5000
+# Best Practice: Don't run as root for security
+USER node 
 CMD ["node", "server.js"]

@@ -1,23 +1,26 @@
 name: Cert-Weave CI/CD
-on: [push]
+on: [push, pull_request]
 
 jobs:
-  build-and-test:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-          # This caches your dependencies for faster subsequent runs
-          cache: 'npm'
-          
+
       - name: Install Root Dependencies
-        # This installs eslint and @eslint/js from your root package.json
-        run: npm install 
-        
-      - name: Run Linting
-        # This now has access to @eslint/js in the root node_modules
-        run: npx eslint .
+        run: npm ci # Use 'ci' for consistent builds
+
+      - name: Run Global Lint
+        # This will now use the updated eslint.config.mjs 
+        # which handles both Backend and Frontend correctly
+        run: npx eslint . 
+
+  build-docker:
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build Node Backend
+        run: docker build -t cert-weave-backend ./Backend -f Backend/Dockerfile
+      - name: Build Python Service
+        run: docker build -t cert-weave-python ./Backend -f Backend/Dockerfile.python
