@@ -7,10 +7,10 @@ import { sha256 } from 'js-sha256';
 export interface CertificateData {
   ipfsCid: string;
   studentName: string;
-  universityname: string;
+  universityName: string;
   courseName: string;
   issueDate: string;
-  walletaddress: string;
+  walletAddress: string;
   publicKey: string;
   grade: string;
 }
@@ -26,10 +26,10 @@ export function reconstructCertificateHash(data: CertificateData): string {
   const stringToHash = 
     data.ipfsCid +
     data.studentName +
-    data.universityname +
+    data.universityName +
     data.courseName +
     data.issueDate +
-    data.walletaddress +
+    data.walletAddress +
     data.publicKey +
     (data.grade || ''); // Use the grade, or an empty string if it's null/undefined
 

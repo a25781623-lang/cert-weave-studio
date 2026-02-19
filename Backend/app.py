@@ -2,6 +2,9 @@ from flask import Flask, request, jsonify
 import os
 from pdf_handler import PDFHandler
 
+#gunicorn --workers 4 --bind 0.0.0.0:5000 app:app
+
+
 app = Flask(__name__)
 pdf_handler = PDFHandler()
 
@@ -47,6 +50,5 @@ def verify_pdf():
 if __name__ == '__main__':
     host = os.getenv('FLASK_HOST', '127.0.0.1')
     port = int(os.getenv('FLASK_PORT', 5000))
-    debug = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
 
     app.run(host=host, port=port, debug=debug)

@@ -51,42 +51,44 @@ const RevokeCertificate = () => {
     setCertificate(null);
 
     try {
-      const fileContent = await jsonFile.text();
-      const jsonData: CertificateData = JSON.parse(fileContent);
-      const reconstructedHash = reconstructCertificateHash(jsonData);
+        const fileText = await jsonFile.text();
+        const certData: CertificateData = JSON.parse(fileText);
+        const reconstructedHash = reconstructCertificateHash(certData);
+        // Call the new signature endpoint
+        const sigResponse = await axios.post(
+            `${import.meta.env.VITE_BACKEND_URL}/get-signature-details`, 
+            { ipfsCid: certData.ipfsCid },
+            { withCredentials: true } // Required for HttpOnly Cookie
+        );
+        // Fetch on-chain status
+        const provider = new ethers.JsonRpcProvider(import.meta.env.VITE_RPC_URL);
+        const contract = new ethers.Contract(contractAddress, CertiChainAbi, provider);
+        const onChainCertificate = await contract.certificates(certificateId)
 
-     const provider = new ethers.JsonRpcProvider(import.meta.env.VITE_RPC_URL);
-      const contract = new ethers.Contract(contractAddress, CertiChainAbi, provider);
-
-      const onChainCertificate = await contract.certificates(certificateId);
-
-      if (onChainCertificate.universityAddress === "0x0000000000000000000000000000000000000000") {
-        throw new Error("This Certificate ID does not exist on the blockchain.");
-      }
-      if (onChainCertificate.isRevoked) {
-        throw new Error("This certificate has already been revoked.");
-      }
-      if (onChainCertificate.certificateHash !== reconstructedHash) {
-        throw new Error("Hash mismatch. The JSON file does not correspond to the Certificate ID.");
-      }
-
-      toast({
-        title: "Verification Successful",
-        description: "Please review the certificate details before revoking.",
+        if (onChainCertificate.universityAddress === "0x0000000000000000000000000000000000000000") {
+          throw new Error("This Certificate ID does not exist on the blockchain.");
+        }
+        if (onChainCertificate.isRevoked) {
+          throw new Error("This certificate has already been revoked.");
+        }
+        if (onChainCertificate.certificateHash !== reconstructedHash) {
+          throw new Error("Hash mismatch. The JSON file does not correspond to the Certificate ID.");
+        }
+        toast({
+          title: "Verification Successful",
+          description: "Please review the certificate details before revoking.",
       });
-      setCertificate({
-        id: certificateId,
-        studentName: jsonData.studentName,
-        courseName: jsonData.courseName,
-        issueDate: jsonData.issueDate,
-        grade: jsonData.grade,
-        status: "active",
-        universityName: jsonData.universityname,
-        studentEmail: "N/A", 
-        walletAddress: jsonData.walletaddress,
-        publicKey: "N/A",
-        signature: "N/A",
-      });
+        setCertificate({
+            id: certificateId,
+            studentName: certData.studentName,
+            courseName: certData.courseName,
+            issueDate: certData.issueDate,
+            grade: certData.grade, // Added (from JSON)
+            universityName: certData.universityName,
+            walletAddress: onChainCertificate.universityAddress, // Added (from Blockchain)
+            signature: sigResponse.data.signer,
+            status: onChainCertificate.isRevoked ? "revoked" : "active",
+        });
 
     } catch (error: any) {
       toast({

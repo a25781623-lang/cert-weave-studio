@@ -1,9 +1,9 @@
-import { useParams, Link, useLocation } from "react-router-dom";
+import {  Link, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Shield, CheckCircle, XCircle, AlertCircle, ArrowLeft, Loader, FileText } from "lucide-react";
+import { Shield, CheckCircle, XCircle,  ArrowLeft, Loader, FileText } from "lucide-react";
 import axios from "axios";
 import { Certificate } from "@/types/certificate";
 

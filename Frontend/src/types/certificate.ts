@@ -1,13 +1,11 @@
 export interface Certificate {
   id: string;
   studentName: string;
-  studentEmail: string;
   courseName: string;
   issueDate: string;
   grade: string;
   universityName: string;
   walletAddress: string;
-  publicKey: string;
   signature: string;
   status: 'active' | 'revoked';
   qrCode?: string;

@@ -110,23 +110,25 @@ useEffect(() => {
             return;
         }
 
-        const token = localStorage.getItem('universityAuthToken');
+        
 
         try {
             setIssuanceStep('verifying');
             const verificationFormData = new FormData();
             verificationFormData.append('pdf', pdfFile);
             await axios.post(`${import.meta.env.VITE_BACKEND_URL}/verify-signature`, verificationFormData, {
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
-            });
+                        withCredentials: true,
+                        headers: { 'Content-Type': 'multipart/form-data' }
+                    });
             toast({ title: "Step 1/4: Signature Verified", description: "The certificate's digital signature is valid." });
 
             setIssuanceStep('uploading');
             const uploadFormData = new FormData();
             uploadFormData.append('pdf', pdfFile);
             const uploadResponse = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/upload-certificate`, uploadFormData, {
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
-            });
+                        withCredentials: true,
+                        headers: { 'Content-Type': 'multipart/form-data' }
+                    });
             const { ipfsCid } = uploadResponse.data;
             toast({ title: "Step 2/4: Uploaded to IPFS", description: `File pinned with CID: ${ipfsCid.substring(0, 10)}...` });
 
@@ -134,7 +136,7 @@ useEffect(() => {
             const hashResponse = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/prepare-certificate-hash`, {
                 ...formData,
                 ipfsCid,
-            }, { headers: { 'Authorization': `Bearer ${token}` } });
+            }, { withCredentials: true });
 
             const { unsignedTx, certificateId: newCertId, certificateHash, certificateDataForJson } = hashResponse.data;
             setCertificateDataForEmail(certificateDataForJson);
@@ -194,18 +196,17 @@ useEffect(() => {
             return;
         }
 
-        const token = localStorage.getItem('universityAuthToken');
         try {
             toast({ title: "Sending Email...", description: "Please wait." });
 
-            await axios.post(`${import.meta.env.VITE_BACKEND_URL}/send-certificate-email`, {
-                studentEmail: formData.studentEmail,
-                studentName: formData.studentName,
-                certificateId: certificateId,
-                certificateData: certificateDataForEmail,
-            }, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+        await axios.post(`${import.meta.env.VITE_BACKEND_URL}/send-certificate-email`, {
+                    studentEmail: formData.studentEmail,
+                    studentName: formData.studentName,
+                    certificateId: certificateId,
+                    certificateData: certificateDataForEmail,
+                }, {
+                    withCredentials: true // Crucial for identifying the university sender
+                });
 
             toast({ title: "Email Sent Successfully!", description: `Certificate details and data file sent to ${formData.studentEmail}` });
 

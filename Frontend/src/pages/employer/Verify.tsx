@@ -54,10 +54,10 @@ const EmployerVerify = () => {
       const rawQrData = [
         data.ipfsCid,
         data.studentName,
-        data.universityname,
+        data.universityName,
         data.courseName,
         data.issueDate,
-        data.walletaddress,
+        data.walletAddress,
         data.publicKey,
         certificateId, // Use the ID from the input field
         data.grade
