@@ -30,7 +30,7 @@ export default tseslint.config(
   "@typescript-eslint/no-explicit-any": "warn",
   "@typescript-eslint/no-empty-object-type": "warn",
   // Updated Rule: Ignore variables starting with "_"
-  "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
+  "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" ,"varsIgnorePattern": "^_/u" }],
 },
   },
 );

@@ -221,7 +221,7 @@ const authenticateToken = (req, res, next) => {
 // --- Registration Step 1: Send Email ---
 app.post('/register', generalLimiter, async (req, res) => {
         console.log("\n--- [STEP 1] /register endpoint hit ---");
-        const { universityName, email, publicKey, walletAddress } = req.body;
+        const { universityName, email, publicKey } = req.body;
         if (!universityName || !email || !publicKey) {
                 return res.status(400).json({ message: 'University name, email, and public key are required.' });
         }
