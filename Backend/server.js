@@ -218,13 +218,13 @@ const authenticateToken = (req, res, next) => {
                         const { data: user, error } = await supabase
                                 .from(`${process.env.SUPABASE_TABLE_NAME}`)
                                 .select('*')
-                                .eq('email', decoded.email.toLowerCase())
+                                .eq('email', decoded.data.email.toLowerCase())
                                 .single();
                         if (error || !user) {
                                 return res.status(401).json({ message: "User no longer exists." });
                         }
                         if (user.active_session_id != decoded.jti) {
-                                console.log(`Session Revoked for ${decoded.email}. Expected: ${user.active_session_id}, Got: ${decoded.jti}`);
+                                console.log(`Session Revoked for ${decoded.data.email}. Expected: ${user.active_session_id}, Got: ${decoded.jti}`);
 
                                 return res.status(401).json({ message: "Session expired or logged in elsewhere." });
                         }
@@ -372,7 +372,7 @@ app.post('/prepare-registration', async (req, res) => {
                 const { data: user, error } = await supabase
                         .from(`${process.env.SUPABASE_TABLE_NAME}`)
                         .select('pending_verification')
-                        .eq('email', decoded.email)
+                        .eq('email', decoded.data.email)
                         .single();
 
                 if (error || !user?.pending_verification || user.pending_verification.token !== token) {
@@ -426,7 +426,7 @@ app.post('/finalize-registration', generalLimiter, async (req, res) => {
                 const { data: user, error: fetchError } = await supabase
                         .from(`${process.env.SUPABASE_TABLE_NAME}`)
                         .select('pending_verification')
-                        .eq('email', decoded.email.toLowerCase())
+                        .eq('email', decoded.data.email.toLowerCase())
                         .single();
 
                 if (fetchError || !user?.pending_verification || user.pending_verification.token !== token) {
