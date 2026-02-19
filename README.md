@@ -478,4 +478,626 @@ Protected routes are wrapped by `<ProtectedRoute>` which calls `/get-university-
 
 **`Dashboard.tsx` — Issuance UI**
 ```
-- Tracks issuance step: idle → verifying → uploading → hashing → signing → co
+- Tracks issuance step: idle → verifying → uploading → hashing → signing → confirmed/failed
+- Step-aware button state with spinners
+- QR code rendered using qrcode.react after success
+- "Send to Student" button triggers email with JSON attachment
+- Fetches universityDetails (name, publicKey) on mount via /get-university-details
+```
+
+**`Certificates.tsx` — Bulk Verification**
+```
+- Accepts multiple JSON file uploads simultaneously
+- For each file: reconstructs QR data string, calls /verify-certificate-from-qr
+- Displays results in a table with Badge components showing status
+- Uses filename (without .json) as the Certificate ID
+```
+
+**`Revoke.tsx`**
+```
+- Client-side verification BEFORE revoking:
+  1. Reads JSON file, reconstructs hash using reconstructCertificateHash()
+  2. Directly queries blockchain via ethers.js (read-only provider)
+  3. Checks: exists, not already revoked, hash matches
+  4. Shows confirmation UI with certificate details
+- Then calls /prepare-revoke for server-side authorization
+- Then calls revokeCertificate() on smart contract via MetaMask
+```
+
+---
+
+### 8.3 State Management
+
+The application uses local component state (useState) for most interactions. No global state manager (Redux/Zustand) is used. React Query (`@tanstack/react-query`) is configured at the app level but primarily used for the query client setup. Auth state is derived from cookie presence, validated server-side on each protected route mount.
+
+---
+
+## 9. Smart Contract Integration
+
+### 9.1 ABI & Functions
+
+The `CertiChain` smart contract exposes the following functions:
+
+**Write Functions (require wallet signing)**
+
+| Function | Parameters | Who Can Call |
+|----------|-----------|--------------|
+| `addUniversityToWhitelist(name, email)` | string, string | Contract owner only |
+| `registerUniversity(name, publicKey)` | string, string | Whitelisted university wallet |
+| `issueCertificate(certificateId, certificateHash)` | string, string | Registered university wallet |
+| `revokeCertificate(certificateId)` | string | Issuing university wallet |
+
+**Read Functions (free, no signing)**
+
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `isUniversityWhitelisted(name)` | (bool, string) | Returns true + email if whitelisted |
+| `universities(address)` | struct | Returns name, email, walletAddress, publicKey, isRegistered |
+| `certificates(certificateId)` | struct | Returns certificateHash, isRevoked, universityAddress |
+| `owner()` | address | Returns contract deployer address |
+
+**Events emitted:**
+- `UniversityRegistered(universityAddress, name)`
+- `CertificateIssued(certificateId, universityAddress, certificateHash)`
+- `CertificateRevoked(certificateId, universityAddress)`
+
+---
+
+### 9.2 Blockchain Network
+
+- **Network:** MegaEth Testnet (EVM-compatible)
+- **RPC URL:** `https://carrot.megaeth.com/rpc`
+- **Provider usage:** 
+  - Node.js backend: `ethers.JsonRpcProvider` (read-only) — a **new provider instance is created per request** for `/get-university-details` to prevent stale connections
+  - Frontend: `ethers.BrowserProvider(window.ethereum)` for MetaMask-signed transactions
+
+---
+
+## 10. Database — Supabase
+
+### Table: `universities`
+
+```sql
+CREATE TABLE universities (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  email TEXT UNIQUE NOT NULL,
+  universityName TEXT NOT NULL,
+  walletAddress TEXT NOT NULL,
+  hashedPassword TEXT NOT NULL,
+  active_session_id TEXT,              -- Stores current JTI for session revocation
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', now())
+);
+
+-- Indexed for O(1) login lookups
+CREATE INDEX idx_universities_email ON universities (email);
+```
+
+### Key Database Operations
+
+| Operation | Endpoint | Details |
+|-----------|----------|---------|
+| INSERT | `/finalize-registration` | Stores new university with bcrypt hashed password |
+| SELECT | `/login`, `authenticateToken` | Fetches user by email (lowercase normalized) |
+| UPDATE | `/login` | Sets `active_session_id` to new UUID (new session) |
+| UPDATE | `/logout` | Sets `active_session_id` to NULL (invalidates session) |
+
+**Password handling:** All passwords are hashed with `bcrypt.hash(password, 10)` (10 salt rounds) and compared with `bcrypt.compare()`. Plaintext passwords are never stored or logged.
+
+**Email normalization:** All emails are stored and queried in lowercase (`email.toLowerCase()`) to prevent case-sensitivity login issues.
+
+---
+
+## 11. IPFS Storage — Pinata
+
+CertiChain uses **Pinata Web3 SDK** (`pinata-web3`) for IPFS file pinning.
+
+```javascript
+// Upload flow in /upload-certificate
+const blob = new Blob([fileBuffer]);
+const fileToUpload = new File([blob], req.file.originalname, { type: "application/pdf" });
+const result = await pinata.upload.file(fileToUpload).addMetadata({
+    name: `Certificate_${req.file.originalname}_${Date.now()}`
+});
+// Returns result.IpfsHash (the CID)
+```
+
+The returned CID is embedded in:
+- The QR code data string
+- The JSON data file emailed to the student
+- The certificate hash computation
+
+**Retrieval during verification:** PDFs are downloaded via the public `dweb.link` IPFS gateway:
+```
+https://dweb.link/ipfs/{CID}
+```
+
+Configuration requires:
+- `PINATA_JWT` — JWT from the Pinata dashboard
+- `PINATA_GATEWAY` — Custom Pinata gateway domain (e.g., `copper-calm-weasel-387.mypinata.cloud`)
+
+---
+
+## 12. Security Architecture
+
+This section documents every security measure implemented in the system.
+
+### 12.1 Authentication & Session Management
+
+**JWT + Stateful Session Revocation (Hybrid Model)**
+
+The system uses JWTs stored in HttpOnly cookies combined with a database-backed session ID (`jti`) to achieve both stateless verification speed and stateful revocation capability.
+
+```
+LOGIN:
+1. Generate UUID → sessionId
+2. UPDATE universities SET active_session_id = sessionId WHERE email = ?
+3. Sign JWT: { email, universityName, walletaddress, jti: sessionId }
+4. Set cookie: universityAuthToken
+   - httpOnly: true    → Cannot be read by JavaScript (XSS protection)
+   - secure: true      → HTTPS only
+   - sameSite: 'strict'→ Not sent on cross-site requests (CSRF protection)
+   - maxAge: 3600000   → 1 hour (60 min)
+
+EVERY AUTHENTICATED REQUEST:
+1. Read cookie (not Authorization header — prevents token leakage in URLs)
+2. jwt.verify() — validates signature and expiry
+3. DB lookup: SELECT active_session_id FROM universities WHERE email = ?
+4. Compare: token.jti === db.active_session_id
+   └── If mismatch → reject with 401 (session was revoked or superseded)
+
+LOGOUT:
+1. UPDATE active_session_id = NULL (invalidates the current JTI)
+2. res.clearCookie() (removes from browser)
+```
+
+**Why this matters:** A stolen JWT cookie is useless after logout because the DB invalidation check will reject it even if the token itself hasn't expired.
+
+**Single-device sessions:** Each new login overwrites `active_session_id`, automatically invalidating any previous active session on other devices. The middleware returns `"Session expired or logged in elsewhere."` in this case.
+
+---
+
+### 12.2 PDF Digital Signature Verification
+
+The Python microservice implements a multi-step cryptographic verification:
+
+**1. Metadata Presence Check**
+- PDF must contain `/Digital_Signature` metadata key
+- Missing signature → immediate rejection
+
+**2. Tamper Detection — Clean PDF Reconstruction**
+```python
+# 1. Strip ALL signature-related metadata keys from the PDF:
+#    /Signed_By, /Signature_Date, /Key_Fingerprint, /Signature_Version,
+#    /Original_Content_Hash, /Digital_Signature, /Signature_Algorithm,
+#    /Key_Algorithm, /Key_Size, /Security_Level, /PDF_Original_Name, /Signing_Method
+#
+# 2. Rebuild the PDF from scratch using PyPDF2.PdfWriter:
+#    - Copy all pages from original
+#    - Re-attach only the remaining "clean" (non-signature) metadata
+#    - Write to an in-memory BytesIO buffer
+#
+# 3. SHA-256 hash the reconstructed bytes
+# 4. Compare with /Original_Content_Hash stored in the PDF metadata
+#    Mismatch = PDF pages or non-signature metadata were modified after signing
+```
+
+The key insight: at signing time, the desktop app computes `SHA256(PDF_without_signature_metadata)` and stores it as `/Original_Content_Hash`. At verification time, the Python service reconstructs that exact same "clean" PDF — strip the identical set of metadata keys, re-add remaining metadata, rewrite all pages into a fresh BytesIO buffer, then hash. Any modification to PDF page content or non-signature metadata after signing produces a different hash and fails — even if an attacker leaves the signature metadata fields intact.
+
+**3. Cryptographic Signature Verification**
+```python
+signed_data = {
+    "content_hash": stored_content_hash,
+    "signer": metadata['/Signed_By'],
+    "timestamp": metadata['/Signature_Date'],
+    "signature_version": metadata['/Signature_Version'],
+    "key_algorithm": metadata['/Key_Algorithm'],
+    "key_size": int(metadata['/Key_Size'])
+}
+
+original_message = json.dumps(signed_data, sort_keys=True).encode('utf-8')
+public_key.verify(stored_signature, original_message, padding.PKCS1v15(), hashes.SHA256())
+```
+
+The `sort_keys=True` ensures deterministic JSON serialization regardless of insertion order. The signature covers the content hash + signer metadata, not just the file.
+
+**4. Key Source: Blockchain**
+The public key used for verification is fetched **directly from the blockchain** (not from user input or the PDF itself):
+```javascript
+const university = await contract.universities(walletaddress);
+const publicKey = university.publicKey; // Fetched from smart contract
+```
+This prevents a man-in-the-middle attack where someone provides a matching key pair along with a forged PDF.
+
+---
+
+### 12.3 Cryptographic Certificate Hashing
+
+The certificate hash binds all meaningful certificate data together:
+
+```javascript
+// Hash string construction (order is deterministic)
+const stringToHash = 
+  ipfsCid +          // Ties to the specific IPFS file
+  studentName +      // Student identity
+  universityname +   // Issuing institution
+  courseName +       // Course
+  issueDate +        // When issued
+  walletaddress +    // Issuing wallet (on-chain identity)
+  publicKey +        // Signing key (cryptographic identity)
+  (grade || '');     // Academic result
+
+const hash = crypto.createHash('sha256').update(stringToHash).digest('hex');
+// Stored on blockchain as "0x" + hash
+```
+
+**Client-side reconstruction** (`src/lib/hash.ts`) uses the `js-sha256` library with the identical field order, allowing the frontend to independently verify without a server round-trip.
+
+**Any modification to any field** (student name, grade, date, etc.) produces a completely different hash, which will not match the on-chain record, causing verification to fail.
+
+---
+
+### 12.4 Blockchain Tamper-Proofing
+
+Once a certificate is issued, its hash is stored on the blockchain:
+- **Immutable:** No one can modify the on-chain hash after recording
+- **Transparent:** Anyone can query the blockchain to see the recorded hash
+- **Revocation is explicit:** `isRevoked` flag must be set by a transaction — it can never be "un-revoked" or deleted
+
+The `universityAddress` field on each certificate record enables the `/prepare-revoke` endpoint to enforce that only the original issuing university can revoke a certificate:
+```javascript
+if (onChainCertificate.universityAddress.toLowerCase() !== walletaddress.toLowerCase()) {
+    return res.status(403).json({ message: "Unauthorized..." });
+}
+```
+
+---
+
+### 12.5 File Upload Security
+
+**Two-phase upload with cryptographic linking:**
+
+Phase 1 (`/verify-signature`):
+```javascript
+// After successful Python verification:
+const fileBuffer = fs.readFileSync(pdfPath);
+const fileHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+verifiedFiles[fileHash] = {
+    verifiedBy: walletaddress,  // Which university verified it
+    timestamp: Date.now()
+};
+```
+
+Phase 2 (`/upload-certificate`):
+```javascript
+// Check the file being uploaded is exactly the same file that was verified:
+const currentFileHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+const verificationRecord = verifiedFiles[currentFileHash];
+
+if (!verificationRecord || verificationRecord.verifiedBy !== walletaddress) {
+    return res.status(403).json({ message: 'Security Violation...' });
+}
+// One-time use: delete after upload
+delete verifiedFiles[currentFileHash];
+```
+
+This ensures:
+1. A university cannot upload a file that hasn't passed signature verification
+2. University A cannot upload a file verified by University B
+3. The same verified file cannot be uploaded multiple times (one-time use token pattern)
+
+**Temp file cleanup:** All uploaded files (`multer` temp files, public key PEM files) are deleted using `fs.unlinkSync()` in both success and error paths, preventing disk accumulation or data leakage.
+
+**Unique temp file names (Python):**
+```python
+temp_id = os.urandom(8).hex()
+pdf_path = f'./temp_uploaded_{temp_id}.pdf'
+public_key_path = f'./temp_pubkey_{temp_id}.pem'
+```
+Random hex names prevent file name collisions when multiple users submit simultaneously.
+
+---
+
+### 12.6 API Security
+
+**Rate Limiting:**
+- General: 500 requests/hour per IP across all endpoints
+- Verification: 20 requests/15 minutes per IP on `/verify-certificate-from-qr`
+- Login/Register: governed by generalLimiter
+
+**CORS:**
+```javascript
+cors({
+    origin: process.env.FRONTEND_URL,  // Only the configured frontend origin
+    credentials: true                   // Required for cookie-based auth
+})
+```
+
+**Cookie security attributes:**
+```javascript
+{
+    httpOnly: true,    // No JS access → XSS mitigation
+    secure: true,      // HTTPS only → prevents cleartext transmission
+    sameSite: 'strict' // No cross-site sending → CSRF mitigation
+}
+```
+
+**Input normalization:** All emails are lowercased before storage and lookup to prevent duplicate accounts and case-sensitivity attacks.
+
+---
+
+### 12.7 Authorization Guards
+
+**Protected Route (frontend):**
+The `ProtectedRoute` component calls the backend on every navigation to a protected page. It does not rely solely on a client-side flag or localStorage value.
+
+**Wallet address authorization (backend):**
+All authenticated operations that interact with the blockchain use the wallet address from `req.user` (database), NOT from client-sent request body. This prevents a university from acting on behalf of another wallet:
+```javascript
+const { walletaddress } = req.user; // From DB via JWT → not from req.body
+```
+
+**Revocation authorization:**
+The `/prepare-revoke` endpoint enforces on-chain ownership:
+```javascript
+// Only the issuing university (stored on-chain) can revoke
+if (onChainCertificate.universityAddress.toLowerCase() !== walletaddress.toLowerCase())
+```
+
+**Registration whitelist:**
+Only universities that have been pre-approved by the blockchain admin (via `addUniversityToWhitelist`) can register. The email must also match the whitelisted email exactly:
+```javascript
+const [isWhitelisted, correctEmail] = await contract.isUniversityWhitelisted(universityName);
+if (isWhitelisted && email.toLowerCase() === correctEmail.toLowerCase())
+```
+
+---
+
+## 13. Environment Configuration
+
+Copy `Backend/example.env` to `Backend/.env` and fill in all values:
+
+```bash
+# Server
+PORT=3000
+Backend_URL=http://localhost:3000
+FRONTEND_URL=http://localhost:8080
+
+# Supabase
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SECRET_KEY=your-service-role-key
+SUPABASE_TABLE_NAME=universities
+
+# JWT
+JWT_SECRET=your_long_random_secret_key_here  # Min 32 chars recommended
+
+# Python Flask
+Python_Api_Url=http://localhost:5000
+FLASK_HOST=0.0.0.0
+FLASK_PORT=5000
+FLASK_DEBUG=True
+
+# Blockchain (MegaEth Testnet)
+RPC_PROVIDER_URL=https://carrot.megaeth.com/rpc
+CONTRACT_ADDRESS=0xYourDeployedContractAddress
+
+# Pinata (IPFS)
+PINATA_JWT=your-pinata-jwt-token
+PINATA_GATEWAY=your-gateway.mypinata.cloud
+
+# Email (Ethereal for dev — get from https://ethereal.email/)
+EMAIL_USER=your@ethereal.email
+EMAIL_PASS=your-ethereal-password
+```
+
+**Frontend `.env`** (Vite — must be prefixed with `VITE_`):
+```bash
+VITE_BACKEND_URL=http://localhost:3000
+VITE_RPC_URL=https://carrot.megaeth.com/rpc
+VITE_CONTRACT_ADDRESS=0xYourDeployedContractAddress
+```
+
+---
+
+## 14. Installation & Setup
+
+### Prerequisites
+- Node.js 18+
+- Python 3.9+
+- MetaMask browser extension
+- Supabase account
+- Pinata account
+- Deployed CertiChain smart contract
+
+### Backend (Node.js)
+
+```bash
+cd Backend
+npm install
+cp example.env .env
+# Fill in .env values
+node server.js
+# Runs on http://localhost:3000 (or PORT env var)
+```
+
+### Backend (Python/Flask)
+
+```bash
+cd Backend
+pip install flask PyPDF2 cryptography
+python app.py
+# Runs on http://localhost:5000 (or FLASK_PORT env var)
+```
+
+### Frontend
+
+```bash
+cd Frontend
+npm install
+# Create .env with VITE_ variables
+npm run dev
+# Runs on http://localhost:8080 (Vite default)
+```
+
+### Database Setup (Supabase)
+
+Run the following SQL in your Supabase SQL editor:
+
+```sql
+CREATE TABLE universities (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  email TEXT UNIQUE NOT NULL,
+  universityname TEXT NOT NULL,
+  walletaddress TEXT NOT NULL,
+  hashedpassword TEXT NOT NULL,
+  active_session_id TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', now())
+);
+
+CREATE INDEX idx_universities_email ON universities (email);
+```
+
+---
+
+## 15. The Desktop PDF Signing Application
+
+Before uploading certificates, universities must digitally sign PDFs using the **CertificateSigner** desktop app (`CertificateSignerSetup_v1.0.0.exe`), served from the `/public` directory of the frontend.
+
+This application:
+1. **Generates an RSA key pair** (private key + public key PEM file)
+2. **Signs a PDF** by:
+   - Computing SHA-256 hash of PDF content
+   - Creating a signed data object (hash + signer info + timestamp + key metadata)
+   - Signing with RSA PKCS1v15 + SHA-256 using the private key
+   - Embedding the signature and metadata into the PDF's custom metadata fields
+3. **Exports the public key** as a `.pem` file for upload during university registration
+
+The university's public key is registered on the blockchain during account creation. This means the signing key is cryptographically tied to the university's blockchain identity.
+
+**Required PDF metadata fields embedded by the signing app:**
+- `/Digital_Signature` — hex-encoded RSA signature
+- `/Original_Content_Hash` — SHA-256 of the clean PDF content
+- `/Signed_By` — signer identifier
+- `/Signature_Date` — ISO timestamp
+- `/Signature_Version` — version string
+- `/Key_Algorithm` — algorithm name (e.g., RSA)
+- `/Key_Size` — key size in bits
+- `/Key_Fingerprint`, `/Signature_Algorithm`, `/Security_Level`, `/PDF_Original_Name`, `/Signing_Method`
+
+---
+
+## 16. Data Flow Diagrams
+
+### Certificate Issuance Data Flow
+
+```
+University (Dashboard)
+    │
+    ├─ Upload signed PDF
+    │       │
+    │       ▼
+    │   POST /verify-signature
+    │       │
+    │       ├─ Fetch pubKey from blockchain ──► MegaEth RPC
+    │       │
+    │       └─ POST /verify-pdf (Python Flask)
+    │               │
+    │               ├─ Check PDF metadata for signature
+    │               ├─ Reconstruct clean PDF, verify SHA-256 hash
+    │               └─ Verify RSA signature with public key
+    │
+    ├─ POST /upload-certificate
+    │       │
+    │       ├─ Verify file hash matches verifiedFiles{}
+    │       └─ pinata.upload.file() ──────────────────► Pinata IPFS
+    │               │                                       │
+    │               └─ Returns CID ◄──────────────────────┘
+    │
+    ├─ POST /prepare-certificate-hash
+    │       │
+    │       ├─ Compute SHA-256(CID+student+uni+course+date+wallet+key+grade)
+    │       └─ Encode issueCertificate(id, hash) as unsigned tx
+    │
+    ├─ MetaMask signs & sends tx ────────────────────► MegaEth Blockchain
+    │       │                                               │
+    │       └─ Receipt + txHash ◄──────────────────────────┘
+    │
+    └─ POST /send-certificate-email ──────────────────► Student Email
+            │
+            └─ JSON attachment: {ipfsCid, studentName, ...}
+```
+
+### Certificate Verification Data Flow
+
+```
+Employer (Verify.tsx)
+    │
+    ├─ Certificate ID + JSON file
+    │       │
+    │       └─ Reconstruct pipe-delimited qrData string
+    │
+    └─ POST /verify-certificate-from-qr
+            │
+            ├─ 1. Reconstruct SHA-256 hash from qrData fields
+            │
+            ├─ 2. Query blockchain ──────────────────────► MegaEth RPC
+            │       │                                         │
+            │       └─ certificates(certId) ◄────────────────┘
+            │               │
+            │               ├─ Compare hash
+            │               └─ Check isRevoked
+            │
+            ├─ 3. Download PDF ─────────────────────────► IPFS (dweb.link)
+            │       │                                         │
+            │       └─ PDF bytes ◄──────────────────────────┘
+            │
+            ├─ 4. POST /verify-pdf (Python Flask)
+            │       │
+            │       └─ Full signature verification
+            │
+            └─ Return: valid=true, certificateData{}
+```
+
+---
+
+## 17. Error Handling
+
+**Backend error patterns:**
+- All endpoints are wrapped in try/catch
+- JWT expiry in registration flow: cleans up pendingVerifications, returns 400
+- Database errors: returns 500 with generic message (no raw DB errors exposed to client)
+- Blockchain query failures: returns 500
+- File system errors: temp files cleaned in both success and catch paths using `fs.existsSync()` guards before `fs.unlinkSync()`
+
+**Frontend error patterns:**
+- All axios calls are in try/catch blocks
+- Error messages are extracted from `error.response?.data?.message` before falling back to `error.message`
+- All errors are shown via the `toast()` notification system (never silent failures)
+- MetaMask rejection (user cancels transaction) is caught and displayed
+- The `ProtectedRoute` redirects silently to login on any auth error
+
+**Python service error handling:**
+- All exceptions are caught and returned as `(False, {'error': str(e)})`
+- Metadata is included even in error responses for debugging
+- Each verification step has explicit error returns with descriptive messages
+
+---
+
+## 18. Known Considerations & Limitations
+
+1. **In-memory session stores:** `pendingVerifications{}` and `verifiedFiles{}` are stored in-memory in the Node.js process. These are lost on server restart. For production, these should be moved to Redis or Supabase with TTL.
+
+2. **Single-server deployment:** The in-memory stores also mean the system won't work correctly behind a multi-instance load balancer without a shared store.
+
+3. **Email service:** The system uses Ethereal (fake SMTP) for development. In production, replace with a real SMTP provider (SendGrid, SES, etc.) in the Nodemailer configuration.
+
+4. **IPFS gateway:** Verification downloads PDFs via `dweb.link`, a public gateway. For production, the Pinata custom gateway (`PINATA_GATEWAY`) should be used for reliability.
+
+5. **Wallet address casing:** Ethereum addresses are checksummed using `ethers.getAddress()` during registration. Comparisons use `.toLowerCase()` throughout for consistency.
+
+6. **Grade as string/number:** Grade is passed as a number input (`type="number"`) but handled as a string in hashing. The `|| ''` fallback handles missing grades consistently.
+
+7. **Session table column naming:** Supabase column names are lowercase by default (`universityname`, `walletaddress`, `hashedpassword`) — the code uses these lowercase names consistently.
+
+---
+
+*CertiChain — Built with blockchain security, cryptographic integrity, and multi-layer verification to make educational fraud impossible.*
