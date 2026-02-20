@@ -558,21 +558,36 @@ app.post('/finalize-registration', generalLimiter, async (req, res) => {
                 res.status(500).json({ message: 'An error occurred during finalization.' });
         }
 });
-app.get('/debug-whitelist/:name', async (req, res) => {
+app.get('/debug-whitelist-write/:name/:email', async (req, res) => {
     try {
         const provider = new ethers.JsonRpcProvider(process.env.RPC_PROVIDER_URL);
-        const c = new ethers.Contract(process.env.CONTRACT_ADDRESS, contractABI, provider);
+        const ownerWallet = new ethers.Wallet(process.env.OWNER_PRIVATE_KEY, provider);
+        const c = new ethers.Contract(process.env.CONTRACT_ADDRESS, contractABI, ownerWallet);
+        
+        console.log("Owner wallet address:", ownerWallet.address);
+        
+        const tx = await c.addUniversityToWhitelist(req.params.name, req.params.email);
+        console.log("Tx sent:", tx.hash);
+        await tx.wait();
+        console.log("Tx confirmed");
+        
+        // Verify it worked
         const [isWhitelisted, email] = await c.isUniversityWhitelisted(req.params.name);
         res.json({ 
-            isWhitelisted, 
-            email,
-            contractAddress: process.env.CONTRACT_ADDRESS,
-            ownerKeyExists: !!process.env.OWNER_PRIVATE_KEY
+            success: true,
+            txHash: tx.hash,
+            ownerAddress: ownerWallet.address,
+            isWhitelisted,
+            email
         });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ 
+            error: err.message,
+            reason: err.reason || null
+        });
     }
 });
+
 // --- Login Endpoint ---
 app.post('/login', generalLimiter, async (req, res) => {
         const { email, password } = req.body;
