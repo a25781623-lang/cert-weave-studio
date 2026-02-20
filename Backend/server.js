@@ -500,12 +500,6 @@ app.post('/finalize-registration', generalLimiter, async (req, res) => {
                         .select('pending_verification')
                         .eq('email', decoded.data.email.toLowerCase())
                         .single();
-                console.log("fetchError:", fetchError);
-                console.log("user found:", !!user);
-                console.log("pending_verification exists:", !!user?.pending_verification);
-                console.log("Token from request (last 20):", token.slice(-20));
-                console.log("Token in DB (last 20):", user?.pending_verification?.token?.slice(-20));
-                console.log("Tokens match:", user?.pending_verification?.token === token);
 
                 if (fetchError || !user?.pending_verification || user.pending_verification.token !== token) {
                         return res.status(400).json({ message: 'Invalid or expired verification link.' });
@@ -517,14 +511,31 @@ app.post('/finalize-registration', generalLimiter, async (req, res) => {
                 if (!registrationData) {
                         return res.status(400).json({ message: 'This verification link has already been used.' });
                 }
-                const correctWalletAddress = registrationData.walletAddress;
+                // --- NEW: Owner wallet whitelists the university on-chain ---
+                console.log(`Whitelisting ${registrationData.universityName} on-chain...`);
+                try {
+                const provider = new ethers.JsonRpcProvider(process.env.RPC_PROVIDER_URL);
+                const ownerWallet = new ethers.Wallet(process.env.OWNER_PRIVATE_KEY, provider);
+                const contractWithSigner = new ethers.Contract(contractAddress, contractABI, ownerWallet);
+
+                const whitelistTx = await contractWithSigner.addUniversityToWhitelist(
+                        registrationData.universityName,
+                        registrationData.email
+                );
+                console.log(`Whitelist tx sent: ${whitelistTx.hash}`);
+                await whitelistTx.wait(); // Wait for it to be mined
+                console.log(`Whitelist tx confirmed for ${registrationData.universityName}`);
+                } catch (whitelistError) {
+                console.error("Failed to whitelist university on-chain:", whitelistError);
+                return res.status(500).json({ message: 'Failed to whitelist university on blockchain.' });
+                }
                 const hashedPassword = await bcrypt.hash(password, 10);
                 const { error } = await supabase
                         .from(`${process.env.SUPABASE_TABLE_NAME}`)
                         .update({
                                 email: registrationData.email.toLowerCase(),
                                 universityName: registrationData.universityName,
-                                walletAddress: correctWalletAddress,
+                                walletAddress: registrationData.walletAddress,
                                 hashedPassword: hashedPassword,
                                 pending_verification: null
                         })
