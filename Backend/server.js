@@ -558,6 +558,21 @@ app.post('/finalize-registration', generalLimiter, async (req, res) => {
                 res.status(500).json({ message: 'An error occurred during finalization.' });
         }
 });
+app.get('/debug-whitelist/:name', async (req, res) => {
+    try {
+        const provider = new ethers.JsonRpcProvider(process.env.RPC_PROVIDER_URL);
+        const c = new ethers.Contract(process.env.CONTRACT_ADDRESS, contractABI, provider);
+        const [isWhitelisted, email] = await c.isUniversityWhitelisted(req.params.name);
+        res.json({ 
+            isWhitelisted, 
+            email,
+            contractAddress: process.env.CONTRACT_ADDRESS,
+            ownerKeyExists: !!process.env.OWNER_PRIVATE_KEY
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 // --- Login Endpoint ---
 app.post('/login', generalLimiter, async (req, res) => {
         const { email, password } = req.body;
