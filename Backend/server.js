@@ -10,7 +10,7 @@ const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const axios = require('axios');
 const fs = require('fs').promises;
-const { createReadStream} = require('fs');
+const { createReadStream } = require('fs');
 const FormData = require('form-data');
 const { PinataSDK } = require('pinata-web3');
 const { createClient } = require('@supabase/supabase-js');
@@ -61,27 +61,27 @@ validateEnv();
 
 // Initialize Express app
 const app = express();
-app.set('trust proxy', 1); 
+app.set('trust proxy', 1);
 app.use(generalLimiter);
 app.use(cookieParser());
 app.use(cors({
-    origin: function(origin, callback) {
-        const allowed = [
-            process.env.FRONTEND_URL,
-            'http://localhost:8080',
-            'http://localhost:5173',
-        ].filter(Boolean);
+        origin: function (origin, callback) {
+                const allowed = [
+                        process.env.FRONTEND_URL,
+                        'http://localhost:8080',
+                        'http://localhost:5173',
+                ].filter(Boolean);
 
-        const isVercelPreview = origin && origin.endsWith('.vercel.app');
+                const isVercelPreview = origin && origin.endsWith('.vercel.app');
 
-        if (!origin || allowed.includes(origin) || isVercelPreview) {
-            callback(null, true);
-        } else {
-            console.log('CORS blocked origin:', origin);
-            callback(new Error('Not allowed by CORS'));
-        }
-    },
-    credentials: true
+                if (!origin || allowed.includes(origin) || isVercelPreview) {
+                        callback(null, true);
+                } else {
+                        console.log('CORS blocked origin:', origin);
+                        callback(new Error('Not allowed by CORS'));
+                }
+        },
+        credentials: true
 }));
 app.use(express.json());
 
@@ -91,7 +91,7 @@ const supabase = createClient(
         process.env.SUPABASE_SECRET_KEY
 );
 
-const verifiedFiles={};
+const verifiedFiles = {};
 // --- Multer Configuration for file uploads ---
 const upload = multer({ dest: 'uploads/' });
 
@@ -184,21 +184,21 @@ const contractAddress = process.env.CONTRACT_ADDRESS;
 
 // --- Brevo Email via REST API ---
 async function sendBrevoEmail({ toEmail, toName, subject, htmlContent, attachment = null }) {
-    const body = {
-        sender: { name: 'CertiChain', email: process.env.BREVO_SENDER_EMAIL },
-        to: [{ email: toEmail, name: toName }],
-        subject,
-        htmlContent,
-    };
-    if (attachment) body.attachment = [attachment];
+        const body = {
+                sender: { name: 'CertiChain', email: process.env.BREVO_SENDER_EMAIL },
+                to: [{ email: toEmail, name: toName }],
+                subject,
+                htmlContent,
+        };
+        if (attachment) body.attachment = [attachment];
 
-    const response = await axios.post('https://api.brevo.com/v3/smtp/email', body, {
-        headers: {
-            'api-key': process.env.BREVO_API_KEY,
-            'Content-Type': 'application/json',
-        }
-    });
-    return response.data;
+        const response = await axios.post('https://api.brevo.com/v3/smtp/email', body, {
+                headers: {
+                        'api-key': process.env.BREVO_API_KEY,
+                        'Content-Type': 'application/json',
+                }
+        });
+        return response.data;
 }
 
 
@@ -258,103 +258,166 @@ app.post('/register', generalLimiter, async (req, res) => {
                 //const [isWhitelisted, correctEmail] = await contract.isUniversityWhitelisted(universityName);
                 if (isWhitelisted && email.toLowerCase() === correctEmail.toLowerCase()) {*/
 
-                        // --- DEBUGGING: Increase expiration and log token details ---
-                        console.log(`Creating registration token at: ${new Date().toLocaleTimeString()}`);
-                        const verificationToken = jwt.sign({ data: req.body }, process.env.JWT_SECRET, { expiresIn: '1h' });
+                // --- DEBUGGING: Increase expiration and log token details ---
+                console.log(`Creating registration token at: ${new Date().toLocaleTimeString()}`);
+                const verificationToken = jwt.sign({ data: req.body }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
-                        const { error } = await supabase
-                                .from(`${process.env.SUPABASE_TABLE_NAME}`)
-                                .insert([{
-                                        email: email.toLowerCase(),
-                                        pending_verification: {
-                                                token: verificationToken,
-                                                data: req.body, // Stores universityName, publicKey, etc.
-                                                expiresAt: new Date(Date.now() + 3600000).toISOString()
-                                        }
-                                }]);
-                        console.error("Supabase Insert Error:", JSON.stringify(error, null, 2)); // ADD THIS
-                        if (error) return res.status(500).json({ message: "Database error during registration." });
-                        console.log(`Token created and stored. Expiration: 1 hour.`);
-
-
-                        // Inside app.post('/register', ...)
-                        const verificationLink = `${process.env.FRONTEND_URL}/create-account/${verificationToken}`;
-
-                        const emailHtml = `
-                                <!DOCTYPE html>
-                                <html>
-                                <head>
-                                <meta charset="UTF-8">
-                                <style>
-                                        .button {
-                                        display: inline-block;
-                                        padding: 12px 24px;
-                                        background-color: #007bff;
-                                        color: #ffffff !important;
-                                        text-decoration: none;
-                                        border-radius: 5px;
-                                        font-weight: bold;
-                                        font-family: Arial, sans-serif;
-                                        }
-                                        .footer-text {
-                                        font-size: 12px;
-                                        color: #888888;
-                                        font-family: Arial, sans-serif;
-                                        }
-                                </style>
-                                </head>
-                                <body style="margin: 0; padding: 0; background-color: #f4f4f4;">
-                                <table width="100%" border="0" cellspacing="0" cellpadding="0" bgcolor="#f4f4f4">
-                                        <tr>
-                                        <td align="center" style="padding: 20px 0;">
-                                                <table width="600" border="0" cellspacing="0" cellpadding="0" bgcolor="#ffffff" style="border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                                                <tr>
-                                                        <td bgcolor="#1a1a17" style="padding: 20px; text-align: center;">
-                                                        <h1 style="color: #ffffff; font-family: Arial, sans-serif; margin: 0; letter-spacing: 2px;">CERTICHAIN</h1>
-                                                        </td>
-                                                </tr>
-                                                <tr>
-                                                        <td style="padding: 40px; text-align: left;">
-                                                        <h2 style="color: #333333; font-family: Arial, sans-serif;">Verify Your University</h2>
-                                                        <p style="color: #666666; font-family: Arial, sans-serif; line-height: 1.6;">
-                                                                Hello <strong>${universityName}</strong>,<br><br>
-                                                                Thank you for joining the CertiChain network. To finalize your registration and secure your blockchain identity, please verify your email address.
-                                                        </p>
-                                                        <div style="padding: 20px 0; text-align: center;">
-                                                                <a href="${verificationLink}" class="button">Verify My Account</a>
-                                                        </div>
-                                                        <p style="color: #999999; font-family: Arial, sans-serif; font-size: 12px;">
-                                                                If the button above doesn't work, copy and paste this link into your browser:<br>
-                                                                <a href="${verificationLink}" style="color: #007bff;">${verificationLink}</a>
-                                                        </p>
-                                                        </td>
-                                                </tr>
-                                                <tr>
-                                                        <td bgcolor="#eeeeee" style="padding: 20px; text-align: center;">
-                                                        <p class="footer-text">
-                                                                &copy; 2026 CertiChain Inc. | 2701 Olympic Blvd, Santa Monica, CA<br>
-                                                                <a href="#" style="color: #888888;">Privacy Policy</a> | <a href="#" style="color: #888888;">Terms of Use</a>
-                                                        </p>
-                                                        </td>
-                                                </tr>
-                                                </table>
-                                        </td>
-                                        </tr>
-                                </table>
-                                </body>
-                                </html>
-                                `;
-
-                        await sendBrevoEmail({
-                            toEmail: email,
-                            toName: universityName,
-                            subject: 'Verify Your University Registration – CertiChain',
-                            htmlContent: emailHtml,
-                        });
+                const { error } = await supabase
+                        .from(`${process.env.SUPABASE_TABLE_NAME}`)
+                        .insert([{
+                                email: email.toLowerCase(),
+                                pending_verification: {
+                                        token: verificationToken,
+                                        data: req.body, // Stores universityName, publicKey, etc.
+                                        expiresAt: new Date(Date.now() + 3600000).toISOString()
+                                }
+                        }]);
+                console.error("Supabase Insert Error:", JSON.stringify(error, null, 2)); // ADD THIS
+                if (error) return res.status(500).json({ message: "Database error during registration." });
+                console.log(`Token created and stored. Expiration: 1 hour.`);
 
 
-                        console.log("Verification email sent.");
-                        res.status(200).json({ message: `Verification email sent.` });
+                // Inside app.post('/register', ...)
+                const verificationLink = `${process.env.FRONTEND_URL}/create-account/${verificationToken}`;
+
+                const emailHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verify Your University – CertiChain</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f0f2f5;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f0f2f5;padding:40px 0;">
+    <tr>
+      <td align="center">
+        <!-- Container -->
+        <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;">
+
+          <!-- Header / Logo Bar -->
+          <tr>
+            <td align="center" style="padding-bottom:24px;">
+              <table cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="background-color:#0a0a0f;border-radius:12px;padding:16px 32px;">
+                    <span style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:22px;font-weight:800;color:#ffffff;letter-spacing:4px;text-transform:uppercase;text-decoration:none;">CERTICHAIN</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Card -->
+          <tr>
+            <td style="background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+
+              <!-- Top accent bar -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="background:linear-gradient(90deg,#1a56db 0%,#0ea5e9 100%);height:5px;font-size:0;line-height:0;">&nbsp;</td>
+                </tr>
+              </table>
+
+              <!-- Body -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="padding:48px 48px 8px 48px;">
+
+                    <!-- Icon badge -->
+                    <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom:28px;">
+                      <tr>
+                        <td style="background-color:#eff6ff;border-radius:50%;width:56px;height:56px;text-align:center;vertical-align:middle;padding:14px;">
+                          <span style="font-size:28px;line-height:1;">🔐</span>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <h1 style="margin:0 0 8px 0;font-size:26px;font-weight:700;color:#0f172a;letter-spacing:-0.3px;">Verify Your Institution</h1>
+                    <p style="margin:0 0 28px 0;font-size:15px;color:#64748b;line-height:1.6;">One step away from joining the blockchain-verified academic network.</p>
+
+                    <p style="margin:0 0 28px 0;font-size:15px;color:#334155;line-height:1.75;">
+                      Hello <strong style="color:#0f172a;">${universityName}</strong>,<br><br>
+                      Thank you for registering with <strong>CertiChain</strong>. To activate your institution's account and establish your on-chain identity, please confirm your email address by clicking the button below.
+                    </p>
+
+                    <!-- CTA Button -->
+                    <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom:32px;">
+                      <tr>
+                        <td style="border-radius:8px;background:linear-gradient(135deg,#1a56db 0%,#0ea5e9 100%);box-shadow:0 4px 14px rgba(26,86,219,0.35);">
+                          <a href="${verificationLink}" style="display:inline-block;padding:15px 36px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;letter-spacing:0.3px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Verify My Account →</a>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <!-- Info box -->
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:32px;">
+                      <tr>
+                        <td style="background-color:#f8fafc;border-left:3px solid #1a56db;border-radius:0 6px 6px 0;padding:14px 18px;">
+                          <p style="margin:0;font-size:13px;color:#64748b;line-height:1.6;">
+                            <strong style="color:#334155;">Link not working?</strong> Copy and paste the URL below into your browser:<br>
+                            <a href="${verificationLink}" style="color:#1a56db;word-break:break-all;font-size:12px;">${verificationLink}</a>
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <p style="margin:0 0 48px 0;font-size:13px;color:#94a3b8;line-height:1.6;">This link expires in <strong>1 hour</strong>. If you did not initiate this request, you can safely ignore this email.</p>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Divider -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="padding:0 48px;"><div style="border-top:1px solid #e2e8f0;"></div></td>
+                </tr>
+              </table>
+
+              <!-- Footer -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="padding:24px 48px 36px 48px;">
+                    <p style="margin:0 0 8px 0;font-size:12px;color:#94a3b8;line-height:1.6;">
+                      © 2026 CertiChain Inc. &nbsp;|&nbsp; 2701 Olympic Blvd, Santa Monica, CA
+                    </p>
+                    <p style="margin:0;font-size:12px;">
+                      <a href="#" style="color:#94a3b8;text-decoration:none;">Privacy Policy</a>
+                      &nbsp;&nbsp;·&nbsp;&nbsp;
+                      <a href="#" style="color:#94a3b8;text-decoration:none;">Terms of Use</a>
+                      &nbsp;&nbsp;·&nbsp;&nbsp;
+                      <a href="#" style="color:#94a3b8;text-decoration:none;">Support</a>
+                    </p>
+                  </td>
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+
+          <!-- Bottom spacer text -->
+          <tr>
+            <td align="center" style="padding-top:24px;">
+              <p style="margin:0;font-size:11px;color:#94a3b8;">Secured by blockchain technology. Powered by CertiChain.</p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+                await sendBrevoEmail({
+                        toEmail: email,
+                        toName: universityName,
+                        subject: 'Verify Your University Registration – CertiChain',
+                        htmlContent: emailHtml,
+                });
+
+
+                console.log("Verification email sent.");
+                res.status(200).json({ message: `Verification email sent.` });
                 /*} else {
                         console.log("Registration failed: University not whitelisted or email does not match.");
                         res.status(400).json({ message: 'University not whitelisted or email does not match.' });
@@ -459,7 +522,7 @@ app.post('/finalize-registration', generalLimiter, async (req, res) => {
                                 hashedPassword: hashedPassword,
                                 pending_verification: null
                         })
-                        .eq('email',registrationData.email.toLowerCase());
+                        .eq('email', registrationData.email.toLowerCase());
 
 
                 if (error) {
@@ -600,8 +663,8 @@ app.post('/verify-signature', authenticateToken, upload.single('pdf'), async (re
                         res.status(400).json({ message: 'Warning: The uploaded PDF is not signed by you.' });
                 }
         } catch (error) {
-                await fs.unlink(pdfPath).catch(() => {})
-                await fs.unlink(publicKeyPath).catch(() => {});
+                await fs.unlink(pdfPath).catch(() => { })
+                await fs.unlink(publicKeyPath).catch(() => { });
                 console.error('Error verifying PDF:', error.response ? error.response.data : error.message);
                 res.status(500).json({ message: 'An error occurred during PDF verification.' });
         }
@@ -652,8 +715,8 @@ app.post('/get-signature-details', verifyLimiter, authenticateToken, async (req,
                 res.status(500).json({ message: "Failed to retrieve digital signature details." });
         } finally {
                 // Essential cleanup to prevent disk bloat
-                await fs.unlink(pdfPath).catch(() => {});
-                await fs.unlink(publicKeyPath).catch(() => {});
+                await fs.unlink(pdfPath).catch(() => { });
+                await fs.unlink(publicKeyPath).catch(() => { });
         }
 });
 
@@ -693,7 +756,7 @@ app.post('/upload-certificate', authenticateToken, upload.single('pdf'), async (
                 console.error('Error uploading to IPFS:', error);
                 res.status(500).json({ message: 'An error occurred during IPFS upload.' });
         } finally {
-                await fs.unlink(pdfPath).catch(() => {});
+                await fs.unlink(pdfPath).catch(() => { });
         }
 });
 
@@ -770,21 +833,187 @@ app.post('/send-certificate-email', authenticateToken, async (req, res) => {
         try {
                 // Convert the certificate data object into a formatted JSON string
                 const jsonContent = JSON.stringify(certificateData, null, 2);
-                const emailHtml=`<p>Dear ${studentName},</p>
-                <p>Congratulations! Your new digital certificate has been successfully issued on the blockchain.</p>
-                <p>Your unique <strong>Certificate ID</strong> is: <strong>${certificateId}</strong></p>
-                <p><strong>IMPORTANT:</strong> Please download and keep the attached JSON file (\`${certificateId}.json\`) in a safe place. You will need this file to verify your certificate.</p>
-                <p>Thank you,</p>
-                <p>The CertiChain Team</p>`
+                const emailHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Your Certificate Has Been Issued – CertiChain</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f0f2f5;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f0f2f5;padding:40px 0;">
+    <tr>
+      <td align="center">
+        <!-- Container -->
+        <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;">
+
+          <!-- Header / Logo Bar -->
+          <tr>
+            <td align="center" style="padding-bottom:24px;">
+              <table cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="background-color:#0a0a0f;border-radius:12px;padding:16px 32px;">
+                    <span style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:22px;font-weight:800;color:#ffffff;letter-spacing:4px;text-transform:uppercase;">CERTICHAIN</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Card -->
+          <tr>
+            <td style="background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+
+              <!-- Top accent bar — gold/achievement tone -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="background:linear-gradient(90deg,#b45309 0%,#f59e0b 50%,#fcd34d 100%);height:5px;font-size:0;line-height:0;">&nbsp;</td>
+                </tr>
+              </table>
+
+              <!-- Hero section -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="background-color:#0f172a;padding:40px 48px;text-align:center;">
+                    <p style="margin:0 0 12px 0;font-size:36px;line-height:1;">🎓</p>
+                    <h1 style="margin:0 0 10px 0;font-size:24px;font-weight:700;color:#ffffff;letter-spacing:-0.2px;">Congratulations, ${studentName}!</h1>
+                    <p style="margin:0;font-size:14px;color:#94a3b8;letter-spacing:0.5px;text-transform:uppercase;">Your certificate has been issued on the blockchain</p>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Body -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="padding:40px 48px 8px 48px;">
+
+                    <p style="margin:0 0 28px 0;font-size:15px;color:#334155;line-height:1.75;">
+                      Your academic achievement has been permanently recorded on the blockchain and is now verifiable by anyone, anywhere, at any time — with full cryptographic integrity.
+                    </p>
+
+                    <!-- Certificate ID highlight box -->
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:28px;">
+                      <tr>
+                        <td style="background:linear-gradient(135deg,#fefce8 0%,#fffbeb 100%);border:1px solid #fde68a;border-radius:10px;padding:20px 24px;">
+                          <p style="margin:0 0 4px 0;font-size:11px;font-weight:600;color:#92400e;letter-spacing:1.5px;text-transform:uppercase;">Certificate ID</p>
+                          <p style="margin:0;font-size:17px;font-weight:700;color:#0f172a;font-family:'Courier New',Courier,monospace;letter-spacing:0.5px;">${certificateId}</p>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <!-- Important notice box -->
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:32px;">
+                      <tr>
+                        <td style="background-color:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:20px 24px;">
+                          <p style="margin:0 0 8px 0;font-size:13px;font-weight:700;color:#0369a1;">📎 &nbsp;Important: Save Your Verification File</p>
+                          <p style="margin:0;font-size:13px;color:#0c4a6e;line-height:1.7;">
+                            A <strong>${certificateId}.txt</strong> file is attached to this email. This file contains the cryptographic data required to verify your certificate. 
+                            <strong>Please store it securely</strong> — you will need it to verify your credentials on the CertiChain platform.
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <!-- What's next section -->
+                    <p style="margin:0 0 16px 0;font-size:13px;font-weight:600;color:#64748b;letter-spacing:1px;text-transform:uppercase;">What happens next</p>
+
+                    <!-- Step list -->
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:36px;">
+                      <tr>
+                        <td style="padding:0 0 14px 0;">
+                          <table cellpadding="0" cellspacing="0" border="0" width="100%">
+                            <tr>
+                              <td style="width:32px;vertical-align:top;padding-top:1px;">
+                                <div style="width:24px;height:24px;background-color:#1a56db;border-radius:50%;text-align:center;line-height:24px;font-size:12px;font-weight:700;color:#fff;">1</div>
+                              </td>
+                              <td style="font-size:14px;color:#334155;line-height:1.6;padding-left:12px;">Download and save the attached <strong>${certificateId}.txt</strong> file to a secure location.</td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:0 0 14px 0;">
+                          <table cellpadding="0" cellspacing="0" border="0" width="100%">
+                            <tr>
+                              <td style="width:32px;vertical-align:top;padding-top:1px;">
+                                <div style="width:24px;height:24px;background-color:#1a56db;border-radius:50%;text-align:center;line-height:24px;font-size:12px;font-weight:700;color:#fff;">2</div>
+                              </td>
+                              <td style="font-size:14px;color:#334155;line-height:1.6;padding-left:12px;">Share your Certificate ID with employers, institutions, or anyone who needs to verify your credentials.</td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>
+                          <table cellpadding="0" cellspacing="0" border="0" width="100%">
+                            <tr>
+                              <td style="width:32px;vertical-align:top;padding-top:1px;">
+                                <div style="width:24px;height:24px;background-color:#1a56db;border-radius:50%;text-align:center;line-height:24px;font-size:12px;font-weight:700;color:#fff;">3</div>
+                              </td>
+                              <td style="font-size:14px;color:#334155;line-height:1.6;padding-left:12px;">Verifiers can confirm authenticity instantly on the CertiChain platform — no central authority required.</td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <p style="margin:0 0 40px 0;font-size:13px;color:#94a3b8;line-height:1.6;">
+                      If you have any questions or did not expect this email, please contact your issuing institution directly.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Divider -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="padding:0 48px;"><div style="border-top:1px solid #e2e8f0;"></div></td>
+                </tr>
+              </table>
+
+              <!-- Footer -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="padding:24px 48px 36px 48px;">
+                    <p style="margin:0 0 8px 0;font-size:12px;color:#94a3b8;line-height:1.6;">
+                      © 2026 CertiChain Inc. &nbsp;|&nbsp; 2701 Olympic Blvd, Santa Monica, CA
+                    </p>
+                    <p style="margin:0;font-size:12px;">
+                      <a href="#" style="color:#94a3b8;text-decoration:none;">Privacy Policy</a>
+                      &nbsp;&nbsp;·&nbsp;&nbsp;
+                      <a href="#" style="color:#94a3b8;text-decoration:none;">Terms of Use</a>
+                      &nbsp;&nbsp;·&nbsp;&nbsp;
+                      <a href="#" style="color:#94a3b8;text-decoration:none;">Support</a>
+                    </p>
+                  </td>
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+
+          <!-- Bottom spacer text -->
+          <tr>
+            <td align="center" style="padding-top:24px;">
+              <p style="margin:0;font-size:11px;color:#94a3b8;">Secured by blockchain technology. Powered by CertiChain.</p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
                 await sendBrevoEmail({
-                    toEmail: studentEmail,
-                    toName: studentName,
-                    subject: 'Your Digital Certificate Has Been Issued!',
-                    htmlContent: emailHtml,
-                    attachment: {
-                        name: `${certificateId}.txt`,
-                        content: Buffer.from(jsonContent, 'utf-8').toString('base64'),
-                    }
+                        toEmail: studentEmail,
+                        toName: studentName,
+                        subject: 'Your Digital Certificate Has Been Issued!',
+                        htmlContent: emailHtml,
+                        attachment: {
+                                name: `${certificateId}.txt`,
+                                content: Buffer.from(jsonContent, 'utf-8').toString('base64'),
+                        }
                 });
                 console.log(`Certificate email sent successfully to ${studentEmail} for ID ${certificateId}`);
                 res.status(200).json({ success: true, message: 'Certificate email sent successfully!' });
