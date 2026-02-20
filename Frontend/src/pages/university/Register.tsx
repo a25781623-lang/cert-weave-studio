@@ -229,15 +229,20 @@ const UniversityRegister = () => {
             <div className="mx-auto bg-accent/10 w-16 h-16 rounded-full flex items-center justify-center">
               <Mail className="h-8 w-8 text-accent" />
             </div>
-            <CardTitle className="text-2xl">Check Your Test Inbox</CardTitle>
+            <CardTitle className="text-2xl">Check Your Inbox</CardTitle>
             <CardDescription>
-              We've sent a verification link to a temporary inbox.
+              We've sent a verification link to your inbox.
             </CardDescription>
           </CardHeader>
           <CardContent className="text-center space-y-4">
             <p className="text-sm text-muted-foreground">
-              Please check your **backend terminal**. A preview link for the
-              email has been printed there. Click that link to continue.
+              Please check your Inbox, Click that link to continue.
+            </p>
+            <br/>
+            <p className="text-sm text-muted-foreground">
+              For Demonstration Purposes.<br/>
+               We are not checking WhiteListed Email.<br/>
+               Backend is configed to check the email against UGC's University Record and their Email
             </p>
           </CardContent>
           <CardFooter className="justify-center">
