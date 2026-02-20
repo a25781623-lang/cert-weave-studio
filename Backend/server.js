@@ -430,58 +430,83 @@ app.post('/register', generalLimiter, async (req, res) => {
 
 // Step 2: Prepare Registration Transaction
 app.post('/prepare-registration', async (req, res) => {
-        console.log("\n--- [STEP 2] /prepare-registration endpoint hit ---");
-        const { token, walletAddress } = req.body;
-        if (!token || !walletAddress) {
-                return res.status(400).json({ message: 'Token and walletAddress are required.' });
+    const { token, walletAddress } = req.body;
+    if (!token || !walletAddress) {
+        return res.status(400).json({ message: 'Token and walletAddress are required.' });
+    }
+
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const { data: user, error } = await supabase
+            .from(`${process.env.SUPABASE_TABLE_NAME}`)
+            .select('pending_verification')
+            .eq('email', decoded.data.email.toLowerCase())
+            .single();
+
+        if (error || !user?.pending_verification || user.pending_verification.token !== token) {
+            return res.status(400).json({ message: "Invalid or expired verification link." });
         }
 
-        try {
-                console.log(`Verifying token at: ${new Date().toLocaleTimeString()}`);
-                const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-                // Find the record where the nested JSON token matches
-                const { data: user, error } = await supabase
-                        .from(`${process.env.SUPABASE_TABLE_NAME}`)
-                        .select('pending_verification')
-                        .eq('email', decoded.data.email)
-                        .single();
-
-                if (error || !user?.pending_verification || user.pending_verification.token !== token) {
-                        return res.status(400).json({ message: "Invalid or expired verification link." });
-                }
-
-                const registrationData = user.pending_verification.data;
-
-
-                console.log("Token is valid.");
-                if (!registrationData) {
-
-                        return res.status(400).json({ message: 'This verification link is invalid or has already been used. Please register again.' });
-                }
-
-
-                const contractInterface = new ethers.Interface(contractABI);
-                const unsignedTx = {
-                        to: contractAddress,
-                        data: contractInterface.encodeFunctionData("registerUniversity", [
-                                registrationData.universityName,
-                                registrationData.publicKey
-                        ]),
-                        from: walletAddress,
-                };
-
-                console.log(`Prepared transaction for ${walletAddress} to register ${registrationData.universityName}.`);
-                res.status(200).json({ unsignedTx });
-        } catch (error) {
-                if (error instanceof jwt.TokenExpiredError) {
-                        console.log("ERROR: Token has expired!");
-
-                        return res.status(400).json({ message: 'Your verification link has expired. Please register again.' });
-                }
-                console.error('Error in /prepare-registration:', error);
-                res.status(500).json({ message: 'An error occurred during transaction preparation.' });
+        const registrationData = user.pending_verification.data;
+        if (!registrationData) {
+            return res.status(400).json({ message: 'Invalid or already used verification link.' });
         }
+
+        // --- WHITELIST FIRST, THEN RETURN UNSIGNED TX ---
+        console.log(`Whitelisting ${registrationData.universityName} on-chain before returning tx...`);
+        const provider = new ethers.JsonRpcProvider(process.env.RPC_PROVIDER_URL);
+        const ownerWallet = new ethers.Wallet(process.env.OWNER_PRIVATE_KEY, provider);
+        const contractWithSigner = new ethers.Contract(contractAddress, contractABI, ownerWallet);
+
+        // Check if already whitelisted to avoid wasting gas on repeat calls
+        const [alreadyWhitelisted] = await contractWithSigner.isUniversityWhitelisted(registrationData.universityName);
+        if (!alreadyWhitelisted) {
+            const whitelistTx = await contractWithSigner.addUniversityToWhitelist(
+                registrationData.universityName,
+                registrationData.email
+            );
+            console.log(`Whitelist tx sent: ${whitelistTx.hash}`);
+            await whitelistTx.wait(); // Must wait for mining before returning
+            console.log(`Whitelist confirmed for ${registrationData.universityName}`);
+        } else {
+            console.log(`${registrationData.universityName} already whitelisted, skipping.`);
+        }
+
+        // Save walletAddress into pending_verification for use in finalize
+        await supabase
+            .from(`${process.env.SUPABASE_TABLE_NAME}`)
+            .update({
+                pending_verification: {
+                    ...user.pending_verification,
+                    data: {
+                        ...registrationData,
+                        walletAddress: walletAddress
+                    }
+                }
+            })
+            .eq('email', decoded.data.email.toLowerCase());
+
+        // Now return the unsigned tx — university is guaranteed whitelisted
+        const contractInterface = new ethers.Interface(contractABI);
+        const unsignedTx = {
+            to: contractAddress,
+            data: contractInterface.encodeFunctionData("registerUniversity", [
+                registrationData.universityName,
+                registrationData.publicKey
+            ]),
+            from: walletAddress,
+        };
+
+        console.log(`Prepared tx for ${walletAddress} to register ${registrationData.universityName}.`);
+        res.status(200).json({ unsignedTx });
+
+    } catch (error) {
+        if (error instanceof jwt.TokenExpiredError) {
+            return res.status(400).json({ message: 'Your verification link has expired. Please register again.' });
+        }
+        console.error('Error in /prepare-registration:', error);
+        res.status(500).json({ message: 'An error occurred during transaction preparation.' });
+    }
 });
 
 // Step 3: Finalize Registration
@@ -510,24 +535,6 @@ app.post('/finalize-registration', generalLimiter, async (req, res) => {
                 console.log("Token is valid for finalization.");
                 if (!registrationData) {
                         return res.status(400).json({ message: 'This verification link has already been used.' });
-                }
-                // --- NEW: Owner wallet whitelists the university on-chain ---
-                console.log(`Whitelisting ${registrationData.universityName} on-chain...`);
-                try {
-                const provider = new ethers.JsonRpcProvider(process.env.RPC_PROVIDER_URL);
-                const ownerWallet = new ethers.Wallet(process.env.OWNER_PRIVATE_KEY, provider);
-                const contractWithSigner = new ethers.Contract(contractAddress, contractABI, ownerWallet);
-
-                const whitelistTx = await contractWithSigner.addUniversityToWhitelist(
-                        registrationData.universityName,
-                        registrationData.email
-                );
-                console.log(`Whitelist tx sent: ${whitelistTx.hash}`);
-                await whitelistTx.wait(); // Wait for it to be mined
-                console.log(`Whitelist tx confirmed for ${registrationData.universityName}`);
-                } catch (whitelistError) {
-                console.error("Failed to whitelist university on-chain:", whitelistError);
-                return res.status(500).json({ message: 'Failed to whitelist university on blockchain.' });
                 }
                 const hashedPassword = await bcrypt.hash(password, 10);
                 const { error } = await supabase
