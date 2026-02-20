@@ -500,6 +500,12 @@ app.post('/finalize-registration', generalLimiter, async (req, res) => {
                         .select('pending_verification')
                         .eq('email', decoded.data.email.toLowerCase())
                         .single();
+                console.log("fetchError:", fetchError);
+                console.log("user found:", !!user);
+                console.log("pending_verification exists:", !!user?.pending_verification);
+                console.log("Token from request (last 20):", token.slice(-20));
+                console.log("Token in DB (last 20):", user?.pending_verification?.token?.slice(-20));
+                console.log("Tokens match:", user?.pending_verification?.token === token);
 
                 if (fetchError || !user?.pending_verification || user.pending_verification.token !== token) {
                         return res.status(400).json({ message: 'Invalid or expired verification link.' });

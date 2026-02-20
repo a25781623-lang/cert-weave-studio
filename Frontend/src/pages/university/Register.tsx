@@ -85,7 +85,7 @@ const UniversityRegister = () => {
       toast({
         title: "Verification Email Sent",
         description:
-          "Please check your backend terminal for the Ethereal preview link.",
+          "Please check your Inbox for  link.",
       });
     } catch (error: any) {
       toast({
