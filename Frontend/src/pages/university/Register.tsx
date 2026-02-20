@@ -222,41 +222,48 @@ const UniversityRegister = () => {
 
 
   if (emailSent) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-accent/10 p-4">
-        <Card className="w-full max-w-md shadow-lg">
-          <CardHeader className="space-y-3 text-center">
-            <div className="mx-auto bg-accent/10 w-16 h-16 rounded-full flex items-center justify-center">
-              <Mail className="h-8 w-8 text-accent" />
-            </div>
-            <CardTitle className="text-2xl">Check Your Inbox</CardTitle>
-            <CardDescription>
-              We've sent a verification link to your inbox.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="text-center space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Please check your Inbox, Click that link to continue.
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-accent/10 p-4">
+      <Card className="w-full max-w-md shadow-lg">
+        <CardHeader className="space-y-3 text-center">
+          <div className="mx-auto bg-accent/10 w-16 h-16 rounded-full flex items-center justify-center">
+            <Mail className="h-8 w-8 text-accent" />
+          </div>
+          <CardTitle className="text-2xl">Check Your Inbox</CardTitle>
+          <CardDescription>
+            We've sent a verification link to your inbox.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="text-center space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Please check your Inbox and click that link to continue.
+          </p>
+
+          <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 text-left space-y-1">
+            <p className="text-xs font-semibold text-yellow-700 uppercase tracking-wide">
+              ⚠ Demonstration Mode
             </p>
-            <br/>
-            <p className="text-sm text-muted-foreground">
-              For Demonstration Purposes.<br/>
-               We are not checking WhiteListed Email.<br/>
-               Backend is configed to check the email against UGC's University Record and their Email
+            <p className="text-xs text-yellow-700">
+              For this demo, email whitelisting is <strong>not enforced</strong>.
+              In a real-world deployment, the backend is configured to validate
+              the submitted email against{" "}
+              <strong>UGC's official university records</strong>, ensuring only
+              recognized institutions with verified email domains can register.
             </p>
-          </CardContent>
-          <CardFooter className="justify-center">
-            <Link
-              to="/university/login"
-              className="text-sm text-primary hover:underline"
-            >
-              Back to Login
-            </Link>
-          </CardFooter>
-        </Card>
-      </div>
-    );
-  }
+          </div>
+        </CardContent>
+        <CardFooter className="justify-center">
+          <Link
+            to="/university/login"
+            className="text-sm text-primary hover:underline"
+          >
+            Back to Login
+          </Link>
+        </CardFooter>
+      </Card>
+    </div>
+  );
+}
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-accent/10 p-4 py-8">
