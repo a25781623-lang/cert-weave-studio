@@ -547,7 +547,28 @@ app.post('/finalize-registration', generalLimiter, async (req, res) => {
                 res.status(500).json({ message: 'An error occurred during finalization.' });
         }
 });
-
+// TEMPORARY DEBUG ENDPOINT - remove after testing
+app.get('/debug-contract/:walletAddress', async (req, res) => {
+    const { walletAddress } = req.params;
+    try {
+        const provider = new ethers.JsonRpcProvider(process.env.RPC_PROVIDER_URL);
+        const contract = new ethers.Contract(process.env.CONTRACT_ADDRESS, contractABI, provider);
+        
+        const uni = await contract.universities(walletAddress);
+        const [isWhitelisted, whitelistEmail] = await contract.isUniversityWhitelisted("IITS");
+        
+        res.json({
+            isRegistered: uni.isRegistered,
+            name: uni.name,
+            walletAddress: uni.walletAddress,
+            isWhitelisted,
+            whitelistEmail,
+            contractAddress: process.env.CONTRACT_ADDRESS,
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 // --- Login Endpoint ---
 app.post('/login', generalLimiter, async (req, res) => {
         const { email, password } = req.body;
