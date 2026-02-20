@@ -254,8 +254,9 @@ app.post('/register', generalLimiter, async (req, res) => {
                 return res.status(400).json({ message: 'University name, email, and public key are required.' });
         }
         try {
-                const [isWhitelisted, correctEmail] = await contract.isUniversityWhitelisted(universityName);
-                if (isWhitelisted && email.toLowerCase() === correctEmail.toLowerCase()) {
+                /* For Demo Purpose, We will not be checking if University Email WhiteListed that we would have done in real world scenerio, Checked againt UGC's Record
+                //const [isWhitelisted, correctEmail] = await contract.isUniversityWhitelisted(universityName);
+                if (isWhitelisted && email.toLowerCase() === correctEmail.toLowerCase()) {*/
 
                         // --- DEBUGGING: Increase expiration and log token details ---
                         console.log(`Creating registration token at: ${new Date().toLocaleTimeString()}`);
@@ -354,10 +355,10 @@ app.post('/register', generalLimiter, async (req, res) => {
 
                         console.log("Verification email sent.");
                         res.status(200).json({ message: `Verification email sent.` });
-                } else {
+                /*} else {
                         console.log("Registration failed: University not whitelisted or email does not match.");
                         res.status(400).json({ message: 'University not whitelisted or email does not match.' });
-                }
+                }*/
         } catch (error) {
                 console.error('Error in /register:', error);
                 res.status(500).json({ message: 'An error occurred.' });

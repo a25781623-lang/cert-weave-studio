@@ -12,7 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
-import { GraduationCap, Mail, Wallet, FileUp } from "lucide-react";
+import { GraduationCap, Mail, Wallet, FileUp ,AlertTriangle,ExternalLink} from "lucide-react";
 import axios from "axios";
 import { ethers } from "ethers";
 
@@ -31,6 +31,7 @@ const UniversityRegister = () => {
   const [loading, setLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [fileName, setFileName] = useState("");
+  const [showMetaMaskGuide, setShowMetaMaskGuide] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -54,14 +55,10 @@ const UniversityRegister = () => {
   };
 
   const connectWallet = async () => {
-    if (!isMetaMaskInstalled()) {
-      toast({
-        title: "MetaMask not found",
-        description: "Please install the MetaMask extension.",
-        variant: "destructive",
-      });
-      return;
-    }
+      if (!isMetaMaskInstalled()) {
+        setShowMetaMaskGuide(true);
+        return;
+      }
     try {
       const provider = new ethers.BrowserProvider((window as any).ethereum);
       const accounts = await provider.send("eth_requestAccounts", []);
@@ -102,6 +99,127 @@ const UniversityRegister = () => {
       setLoading(false);
     }
   };
+ // --- MetaMask Setup Guide Card ---
+  if (showMetaMaskGuide) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-accent/10 p-4">
+        <Card className="w-full max-w-lg shadow-lg border-orange-200">
+          <CardHeader className="space-y-3 text-center">
+            <div className="mx-auto bg-orange-100 w-16 h-16 rounded-full flex items-center justify-center">
+              <AlertTriangle className="h-8 w-8 text-orange-500" />
+            </div>
+            <CardTitle className="text-2xl">No Wallet Detected</CardTitle>
+            <CardDescription>
+              Follow these steps to set up your MetaMask wallet and connect to
+              MegaETH Testnet before registering.
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="space-y-4">
+            <ol className="space-y-4 text-sm text-foreground">
+              <li className="flex gap-3">
+                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">
+                  1
+                </span>
+                <span>
+                  <strong>Install MetaMask</strong> from the{" "}
+                  <a
+                    href="https://chromewebstore.google.com/detail/metamask/nkbihfbeogaeaoehlefnkodbefgpgknn"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline inline-flex items-center gap-1"
+                  >
+                    Chrome Web Store <ExternalLink className="h-3 w-3" />
+                  </a>{" "}
+                  or{" "}
+                  <a
+                    href="https://apps.apple.com/us/app/metamask-blockchain-wallet/id1438144202"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline inline-flex items-center gap-1"
+                  >
+                    Safari's App Store <ExternalLink className="h-3 w-3" />
+                  </a>
+                  .
+                </span>
+              </li>
+
+              <li className="flex gap-3">
+                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">
+                  2
+                </span>
+                <span>
+                  <strong>Set up your Wallet</strong> by following the MetaMask
+                  onboarding instructions to create or import an account.
+                </span>
+              </li>
+
+              <li className="flex gap-3">
+                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">
+                  3
+                </span>
+                <span>
+                  Under the <strong>Token, DeFi, NFTs</strong> section, click
+                  the box that says <strong>Ethereum</strong>. In the{" "}
+                  <em>Select Network</em> pop-up, go to{" "}
+                  <strong>Custom</strong> and select{" "}
+                  <strong>MegaETH Testnet</strong>.
+                </span>
+              </li>
+
+              <li className="flex gap-3">
+                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">
+                  4
+                </span>
+                <span>
+                  <strong>Copy your wallet address</strong>, then go to{" "}
+                  <a
+                    href="https://testnet.megaeth.com/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline inline-flex items-center gap-1"
+                  >
+                    testnet.megaeth.com <ExternalLink className="h-3 w-3" />
+                  </a>
+                  , click on <strong>Faucet</strong>, paste your wallet address,
+                  and claim some test ETH.
+                </span>
+              </li>
+
+              <li className="flex gap-3">
+                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">
+                  5
+                </span>
+                <span>
+                  Once done, come back and{" "}
+                  <strong>try to Register again</strong>!
+                </span>
+              </li>
+            </ol>
+          </CardContent>
+
+          <CardFooter className="flex flex-col gap-3">
+            <Button
+              className="w-full"
+              onClick={() => {
+                setShowMetaMaskGuide(false);
+              }}
+            >
+              I've Installed MetaMask — Try Again
+            </Button>
+            <Link
+              to="/university/login"
+              className="text-sm text-muted-foreground hover:text-primary hover:underline"
+            >
+              Back to Login
+            </Link>
+          </CardFooter>
+        </Card>
+      </div>
+    );
+  }
+
+
 
   if (emailSent) {
     return (
